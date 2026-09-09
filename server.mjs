@@ -33,9 +33,9 @@ function isAllowedUrl(value) {
 }
 
 function normalizeTargetUrl(value) {
-  const trimmed = String(value || '').trim();
-  const markdownMatch = trimmed.match(/^\[[^\]]+\]\((https:\/\/www\.alcopa-auction\.fr\/[^)]+)\)$/i);
-  return markdownMatch ? markdownMatch[1].replace(/\\&/g, '&') : trimmed;
+  const cleaned = String(value || '').trim().replace(/\\&/g, '&');
+  const alcopaUrl = cleaned.match(/https:\/\/www\.alcopa-auction\.fr\/[^\s\])"'<>]+/i);
+  return alcopaUrl ? alcopaUrl[0] : cleaned;
 }
 
 async function handleScrape(req, res, url) {
