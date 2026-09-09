@@ -1,0 +1,13 @@
+{
+  "name": "alcopa-scraper",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "scrape:lyon": "node scrape-alcopa.mjs --url \"https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371\" --out alcopa-lyon-12371.json --csv alcopa-lyon-12371.csv --max-pages 30"
+  }
+}
