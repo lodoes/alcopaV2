@@ -2,6 +2,7 @@ import http from 'node:http';
 import { DEFAULT_URL, scrape, toCsv } from './scrape-alcopa.mjs';
 
 const PORT = Number(process.env.PORT || 3000);
+const HOST = process.env.HOST || '0.0.0.0';
 const DEFAULT_MAX_PAGES = Number(process.env.DEFAULT_MAX_PAGES || 30);
 const MAX_ALLOWED_PAGES = Number(process.env.MAX_ALLOWED_PAGES || 40);
 const DEFAULT_DELAY_MS = Number(process.env.DEFAULT_DELAY_MS || 350);
@@ -120,6 +121,11 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`Alcopa scraper API listening on port ${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`Alcopa scraper API listening on ${HOST}:${PORT}`);
+});
+
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, closing HTTP server');
+  server.close(() => process.exit(0));
 });
