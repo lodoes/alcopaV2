@@ -98,24 +98,114 @@ function pageUrl(sourceUrl, page) {
   return url.href;
 }
 
-async function fetchHtml(url) {
-  const res = await fetch(url, {
-    headers: {
-      'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'accept-language': 'fr-FR,fr;q=0.9,en;q=0.6',
-      'user-agent': 'Mozilla/5.0 AlcopaScraperV1/1.0 (+local research)',
-    },
-    redirect: 'follow',
-  });
+const USER_AGENT = process.env.SCRAPER_USER_AGENT
+  || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
+const MAX_ATTEMPTS = Math.max(1, Number(process.env.SCRAPER_MAX_ATTEMPTS || 4));
+const RETRY_STATUSES = new Set([403, 405, 408, 425, 429, 500, 502, 503, 504]);
 
+const session = { cookies: new Map(), warm: false };
+
+function storeCookies(res) {
+  const raw = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [];
+  for (const cookie of raw) {
+    const [pair] = cookie.split(';');
+    const index = pair.indexOf('=');
+    if (index > 0) session.cookies.set(pair.slice(0, index).trim(), pair.slice(index + 1).trim());
+  }
+}
+
+function cookieHeader() {
+  return [...session.cookies.entries()].map(([name, value]) => `${name}=${value}`).join('; ');
+}
+
+function browserHeaders({ referer = '' } = {}) {
+  const headers = {
+    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'accept-language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
+    'cache-control': 'no-cache',
+    'pragma': 'no-cache',
+    'sec-ch-ua': '"Chromium";v="140", "Not(A:Brand";v="24", "Google Chrome";v="140"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+    'sec-fetch-dest': 'document',
+    'sec-fetch-mode': 'navigate',
+    'sec-fetch-site': referer ? 'same-origin' : 'none',
+    'sec-fetch-user': '?1',
+    'upgrade-insecure-requests': '1',
+    'user-agent': USER_AGENT,
+  };
+  const cookie = cookieHeader();
+  if (cookie) headers.cookie = cookie;
+  if (referer) headers.referer = referer;
+  return headers;
+}
+
+function isChallenge(html) {
+  return /cf-chl-|attention required|just a moment|datadome|are you a human/i.test(html);
+}
+
+async function rawFetch(url, referer) {
+  const res = await fetch(url, { headers: browserHeaders({ referer }), redirect: 'follow' });
   const html = await res.text();
-  const challenge = /cf-chl-|cloudflare|attention required|just a moment/i.test(html);
+  storeCookies(res);
   return {
     status: res.status,
     finalUrl: res.url,
     headers: Object.fromEntries(res.headers.entries()),
     html,
-    challenge,
+    challenge: isChallenge(html),
+  };
+}
+
+async function warmUpSession(force = false) {
+  if (session.warm && !force) return true;
+  if (force) session.cookies.clear();
+  try {
+    const res = await rawFetch(`${BASE_URL}/`, '');
+    session.warm = res.status >= 200 && res.status < 400;
+    return session.warm;
+  } catch {
+    session.warm = false;
+    return false;
+  }
+}
+
+async function fetchHtml(url, { referer = '' } = {}) {
+  let last = null;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    await warmUpSession(attempt > 1);
+    try {
+      last = await rawFetch(url, referer || `${BASE_URL}/`);
+    } catch (error) {
+      last = { status: 0, finalUrl: url, headers: {}, html: '', challenge: false, networkError: error.message };
+    }
+    const retryable = last.status === 0 || last.challenge || RETRY_STATUSES.has(last.status);
+    if (!retryable) return { ...last, attempts: attempt };
+    if (attempt < MAX_ATTEMPTS) {
+      console.error(`[retry ${attempt}/${MAX_ATTEMPTS}] ${url} -> statut ${last.status}${last.challenge ? ' (challenge)' : ''}`);
+      await sleep(500 * (2 ** (attempt - 1)));
+    }
+  }
+  return { ...last, attempts: MAX_ATTEMPTS };
+}
+
+function describeBlock(url, response) {
+  return {
+    url,
+    finalUrl: response.finalUrl || url,
+    status: response.status,
+    challenge: Boolean(response.challenge),
+    networkError: response.networkError || null,
+    attempts: response.attempts || 1,
+    upstream: {
+      server: response.headers?.server || null,
+      via: response.headers?.via || null,
+      allow: response.headers?.allow || null,
+      contentType: response.headers?.['content-type'] || null,
+      amzCfPop: response.headers?.['x-amz-cf-pop'] || null,
+      amzCfId: response.headers?.['x-amz-cf-id'] || null,
+    },
+    bodyPreview: stripTags(response.html || '').slice(0, 500),
   };
 }
 
@@ -332,7 +422,7 @@ async function scrape(args) {
     const fs = await import('node:fs/promises');
     const html = await fs.readFile(args.html, 'utf8');
     const parsed = parseHtml(html, args.url);
-    return { lots: parsed.lots, pagesSeen: 1, expectedPages: parsed.maxPage, blocked: false };
+    return { lots: parsed.lots, pagesSeen: 1, expectedPages: parsed.maxPage, blocked: false, blockReason: null };
   }
 
   const allLots = [];
@@ -341,17 +431,18 @@ async function scrape(args) {
   let expectedLots = null;
   let pagesFetched = 0;
   let blocked = false;
+  let blockReason = null;
+  let previousUrl = '';
 
   for (let page = 1; page <= Math.min(expectedPages, args.maxPages); page += 1) {
     const url = page === 1 ? args.url : pageUrl(args.url, page);
-    const response = await fetchHtml(url);
-    if (response.challenge || [403, 429, 503].includes(response.status)) {
+    const response = await fetchHtml(url, { referer: previousUrl });
+    previousUrl = response.finalUrl || url;
+    if (response.challenge || response.status < 200 || response.status >= 300) {
       blocked = true;
-      console.error(`[stop] page ${page}: statut ${response.status}, challenge ou blocage detecte`);
+      blockReason = describeBlock(url, response);
+      console.error(`[stop] page ${page}: statut ${response.status}${response.challenge ? ' (challenge)' : ''} apres ${response.attempts} tentative(s)`);
       break;
-    }
-    if (response.status < 200 || response.status >= 300) {
-      throw new Error(`HTTP ${response.status} sur ${url}`);
     }
     pagesFetched = page;
 
@@ -384,10 +475,11 @@ async function scrape(args) {
     pagesSeen: pagesFetched,
     expectedPages,
     blocked,
+    blockReason,
   };
 }
 
-export { DEFAULT_URL, CSV_HEADERS, scrape, toCsv };
+export { DEFAULT_URL, BASE_URL, CSV_HEADERS, scrape, toCsv, fetchHtml, describeBlock };
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
@@ -406,6 +498,7 @@ async function main() {
     csv: args.csv || null,
     pages: result.pagesSeen,
     expectedPages: result.expectedPages,
+    blockReason: result.blockReason,
   }, null, 2));
 
   if (result.blocked) {

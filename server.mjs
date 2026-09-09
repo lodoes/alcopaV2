@@ -1,9 +1,9 @@
 import http from 'node:http';
-import { DEFAULT_URL, scrape, toCsv } from './scrape-alcopa.mjs';
+import { BASE_URL, DEFAULT_URL, describeBlock, fetchHtml, scrape, toCsv } from './scrape-alcopa.mjs';
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
-const APP_VERSION = '2026-09-09-railway-url-normalizer-v2';
+const APP_VERSION = '2026-09-09-session-warmup-retry-v3';
 const DEFAULT_MAX_PAGES = Number(process.env.DEFAULT_MAX_PAGES || 30);
 const MAX_ALLOWED_PAGES = Number(process.env.MAX_ALLOWED_PAGES || 40);
 const DEFAULT_DELAY_MS = Number(process.env.DEFAULT_DELAY_MS || 350);
@@ -83,7 +83,42 @@ async function handleScrape(req, res, url) {
     pages: result.pagesSeen,
     expectedPages: result.expectedPages,
     durationMs: Date.now() - startedAt,
+    error: result.blocked ? `Alcopa a refuse la requete (HTTP ${result.blockReason?.status ?? '?'}) depuis cet hebergeur` : null,
+    blockReason: result.blockReason,
     data: result.lots,
+  });
+}
+
+async function egressIp() {
+  try {
+    const res = await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(5000) });
+    const body = await res.json();
+    return body.ip || null;
+  } catch {
+    return null;
+  }
+}
+
+async function handleDebug(res, url) {
+  const targetUrl = normalizeTargetUrl(url.searchParams.get('url') || DEFAULT_URL);
+  if (!isAllowedUrl(targetUrl)) {
+    send(res, 400, { ok: false, error: 'URL invalide.' });
+    return;
+  }
+
+  const [ip, home, target] = await Promise.all([
+    egressIp(),
+    fetchHtml(`${BASE_URL}/`).catch((error) => ({ status: 0, networkError: error.message, headers: {}, html: '' })),
+    fetchHtml(targetUrl).catch((error) => ({ status: 0, networkError: error.message, headers: {}, html: '' })),
+  ]);
+
+  send(res, 200, {
+    ok: true,
+    version: APP_VERSION,
+    egressIp: ip,
+    nodeVersion: process.version,
+    homepage: describeBlock(`${BASE_URL}/`, home),
+    target: describeBlock(targetUrl, target),
   });
 }
 
@@ -104,6 +139,7 @@ const server = http.createServer(async (req, res) => {
         endpoints: {
           scrape: '/scrape?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=30',
           csv: '/scrape?format=csv&url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=30',
+          debug: '/debug?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371',
         },
       });
       return;
@@ -114,11 +150,27 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === 'GET' && url.pathname === '/debug') {
+      await handleDebug(res, url);
+      return;
+    }
+
     send(res, 404, { ok: false, error: 'Route inconnue' });
   } catch (error) {
     send(res, 500, {
       ok: false,
       error: error.message,
+      status: error.status || null,
+      url: error.url || null,
+      finalUrl: error.finalUrl || null,
+      upstream: error.headers ? {
+        server: error.headers.server || null,
+        via: error.headers.via || null,
+        cfRay: error.headers['cf-ray'] || null,
+        contentType: error.headers['content-type'] || null,
+        allow: error.headers.allow || null,
+      } : null,
+      bodyPreview: error.bodyPreview || null,
     });
   }
 });

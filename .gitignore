@@ -1,0 +1,17 @@
+# Dumps de scraping et echantillons locaux
+alcopa-lyon-*.json
+alcopa-lyon-*.csv
+alcopa-sample-*.html
+page*.json
+page*.csv
+sample.json
+sample.csv
+
+# Dashboards locaux (contiennent une cle Supabase publishable)
+alcopa-analytics.html
+alcopa-scraper*.html
+
+# Divers
+test-write.txt
+nul
+node_modules/
