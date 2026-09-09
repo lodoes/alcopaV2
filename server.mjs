@@ -32,12 +32,18 @@ function isAllowedUrl(value) {
   }
 }
 
+function normalizeTargetUrl(value) {
+  const trimmed = String(value || '').trim();
+  const markdownMatch = trimmed.match(/^\[[^\]]+\]\((https:\/\/www\.alcopa-auction\.fr\/[^)]+)\)$/i);
+  return markdownMatch ? markdownMatch[1].replace(/\\&/g, '&') : trimmed;
+}
+
 async function handleScrape(req, res, url) {
-  const targetUrl = url.searchParams.get('url') || DEFAULT_URL;
+  const targetUrl = normalizeTargetUrl(url.searchParams.get('url') || DEFAULT_URL);
   if (!isAllowedUrl(targetUrl)) {
     send(res, 400, {
       ok: false,
-      error: 'URL invalide. Utilise une URL https://www.alcopa-auction.fr/...',
+      error: 'URL invalide. Utilise une URL brute https://www.alcopa-auction.fr/... sans crochets Markdown.',
     });
     return;
   }
