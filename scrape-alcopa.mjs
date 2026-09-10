@@ -595,7 +595,7 @@ function parseCard(card, context) {
 
   return {
     id: idBase.replace(/\s+/g, '-').toLowerCase(),
-    merge_key: `${context.salle || 'x'}-${lotNumber || 0}`.toLowerCase(),
+    merge_key: idBase.replace(/\s+/g, '-').toLowerCase(),
     lot_number: lotNumber,
     salle: context.salle,
     date_vente: dateVente,

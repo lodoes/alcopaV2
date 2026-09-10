@@ -184,7 +184,8 @@ function blockReason(url, response) {
 
 async function enrichLot(lot, options) {
   const detailUrl = lot.url_alcopa;
-  const output = { ...lot };
+  const detailAttemptedAt = new Date().toISOString();
+  const output = { ...lot, detail_last_attempt_at: detailAttemptedAt };
   let detailResponse;
   try {
     detailResponse = await options.fetchHtml(detailUrl, { referer: options.referer || '' });
@@ -193,7 +194,6 @@ async function enrichLot(lot, options) {
         lot: {
           ...output,
           detail_error: `HTTP ${detailResponse.status || 0} sur la fiche Alcopa`,
-          annonce_fetched_at: new Date().toISOString(),
         },
         blocked: Boolean(detailResponse.challenge || [403, 405, 429].includes(detailResponse.status)),
         blockReason: blockReason(detailUrl, detailResponse),
@@ -208,7 +208,6 @@ async function enrichLot(lot, options) {
       lot: {
         ...output,
         detail_error: error.message,
-        annonce_fetched_at: new Date().toISOString(),
       },
       blocked: false,
       blockReason: null,
@@ -221,6 +220,8 @@ async function enrichLot(lot, options) {
     return { lot: output, blocked: false, blockReason: null, ctAttempted: false, ctAnalyzed: false };
   }
 
+  const ctAttemptedAt = new Date().toISOString();
+  output.ct_last_attempt_at = ctAttemptedAt;
   try {
     if (new URL(output.url_ct).hostname !== 'www.alcopa-auction.fr') {
       throw new Error('Le lien CT ne pointe pas vers le domaine Alcopa autorise.');
@@ -257,7 +258,6 @@ async function enrichLot(lot, options) {
     return { lot: output, blocked: false, blockReason: null, ctAttempted: true, ctAnalyzed: true };
   } catch (error) {
     output.ct_error = error.message;
-    output.ct_ocr_done_at = new Date().toISOString();
     return { lot: output, blocked: false, blockReason: null, ctAttempted: true, ctAnalyzed: false };
   }
 }

@@ -61,6 +61,44 @@ node .\scrape-alcopa.mjs --url "https://www.alcopa-auction.fr/salle-de-vente-enc
 
 Une vente complete avec OCR peut durer longtemps. Depuis une interface web, appeler `/vehicle` sequentiellement est plus robuste qu'une seule grosse requete HTTP. Pour stocker les nouveaux champs dans Supabase, executer une fois `supabase_alcopa_detail_ct_migration.sql` dans l'editeur SQL.
 
+## Cron de toutes les salles
+
+Le cron ne contient aucun ID de vente en dur. A chaque lancement, il ouvre la home Alcopa, recupere tous les liens `Voir la liste`, puis traite chaque `sale_id`. Deux ventes de la meme salle, comme une vente classique et une vente camping-cars a Marseille, restent donc deux ventes distinctes.
+
+Utiliser un deuxieme service Railway connecte au meme depot GitHub:
+
+1. Executer `supabase_alcopa_detail_ct_migration.sql` dans Supabase.
+2. Dans Railway, creer un nouveau service GitHub depuis le meme depot et le nommer `alcopa-cron`.
+3. Dans ses Settings, definir le chemin du fichier de configuration sur `/railway-cron.json`.
+4. Ajouter `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY` dans Variables. Ne jamais mettre la cle service-role dans Git.
+5. Ne pas generer de domaine public pour ce service. Il s'execute puis s'arrete.
+
+`railway-cron.json` lance `npm run cron` tous les jours a `02:15 UTC` et conserve la region Amsterdam. Le service API existant continue d'utiliser `railway.json` et `npm start`.
+
+Premier lancement recommande:
+
+```text
+CRON_DISCOVERY_ONLY=true
+```
+
+Le log `sales_discovered` permet de verifier les salles et ventes trouvees sans scraper les catalogues. Remettre ensuite cette variable a `false`.
+
+Variables principales du cron:
+
+| Variable | Defaut | Role |
+| --- | --- | --- |
+| `CRON_SALLES` | vide | Filtre optionnel, ex. `lyon,marseille,paris-sud` |
+| `CRON_VEHICLES_ONLY` | `true` | Ignore les ventes explicitement motos/scooters/cyclos |
+| `CRON_MAX_PAGES_PER_SALE` | `60` | Plafond de pages par vente |
+| `CRON_DETAILS` | `true` | Enrichit les fiches encore absentes de Supabase |
+| `CRON_DETAIL_LIMIT_PER_SALE` | `25` | Nombre de nouvelles fiches par vente et par passage |
+| `CRON_OCR` | `false` | Active l'analyse CT |
+| `CRON_OCR_LIMIT_PER_SALE` | `10` | Nombre de CT par vente et par passage |
+| `CRON_MAX_RUNTIME_MINUTES` | `240` | Arrete proprement entre deux etapes quand la duree est atteinte |
+| `CRON_MAX_SALES` | `0` | Limite de test; `0` traite toutes les ventes trouvees |
+
+Le traitement est incremental: le catalogue est mis a jour, puis Supabase fournit seulement les lots dont `annonce_fetched_at` ou `ct_ocr_done_at` est encore vide. Railway utilise les horaires UTC et ignore un nouveau declenchement si le precedent tourne encore.
+
 ## Transport navigateur sur Railway
 
 Le `Dockerfile` installe Chromium et configure automatiquement `SCRAPER_TRANSPORT=browser`. Railway utilise ce fichier grace a la section `build` de `railway.json`. Une seule replique est placee en EU West (Amsterdam) afin d'heberger le service au plus pres du site francais.

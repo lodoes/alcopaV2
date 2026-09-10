@@ -21,7 +21,15 @@ RUN apt-get update \
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-COPY --chown=node:node ct-analysis.mjs vehicle-details.mjs scrape-alcopa.mjs server.mjs ./
+COPY --chown=node:node \
+  cron-all-sales.mjs \
+  ct-analysis.mjs \
+  homepage-sales.mjs \
+  scrape-alcopa.mjs \
+  server.mjs \
+  supabase-store.mjs \
+  vehicle-details.mjs \
+  ./
 
 USER node
 
