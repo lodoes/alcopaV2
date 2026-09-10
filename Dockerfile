@@ -22,6 +22,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY --chown=node:node \
+  combined-cron.mjs \
   cron-all-sales.mjs \
   ct-analysis.mjs \
   homepage-sales.mjs \

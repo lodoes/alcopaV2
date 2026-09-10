@@ -65,7 +65,7 @@ Une vente complete avec OCR peut durer longtemps. Depuis une interface web, appe
 
 Le cron ne contient aucun ID de vente en dur. A chaque lancement, il ouvre la home Alcopa, recupere tous les liens `Voir la liste`, puis traite chaque `sale_id`. Deux ventes de la meme salle, comme une vente classique et une vente camping-cars a Marseille, restent donc deux ventes distinctes.
 
-Utiliser un deuxieme service Railway connecte au meme depot GitHub:
+Utiliser un deuxieme service Railway connecte au meme depot GitHub. Aucun troisieme service n est necessaire: ce cron execute Alcopa la nuit et Interencheres le soir.
 
 1. Executer `supabase_alcopa_detail_ct_migration.sql` dans Supabase.
 2. Dans Railway, creer un nouveau service GitHub depuis le meme depot et le nommer `alcopa-cron`.
@@ -73,7 +73,7 @@ Utiliser un deuxieme service Railway connecte au meme depot GitHub:
 4. Ajouter `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY` dans Variables. Ne jamais mettre la cle service-role dans Git.
 5. Ne pas generer de domaine public pour ce service. Il s'execute puis s'arrete.
 
-`railway-cron.json` lance `node cron-all-sales.mjs` tous les jours a `02:15 UTC` et conserve la region Amsterdam. Le service API existant continue d'utiliser `railway.json` et `node server.mjs`. Le lancement direct evite que `npm` transforme un arret normal de Railway en faux message `npm error ... SIGTERM`.
+`railway-cron.json` lance `node combined-cron.mjs` a `02:15`, `16:15`, `17:15` et `18:15 UTC`, tout en conservant la region Amsterdam. Le passage de `02:15 UTC` lance Alcopa; les trois passages du soir lancent Interencheres. Le service API existant continue d'utiliser `railway.json` et `node server.mjs`. Le lancement direct evite que `npm` transforme un arret normal de Railway en faux message `npm error ... SIGTERM`.
 
 Premier lancement recommande:
 
@@ -96,6 +96,7 @@ Variables principales du cron:
 | `CRON_OCR_LIMIT_PER_SALE` | `10` | Nombre de CT par vente et par passage |
 | `CRON_MAX_RUNTIME_MINUTES` | `240` | Arrete proprement entre deux etapes quand la duree est atteinte |
 | `CRON_MAX_SALES` | `0` | Limite de test; `0` traite toutes les ventes trouvees |
+| `COMBINED_CRON_JOB` | `auto` | Force `alcopa` ou `interencheres` pour un lancement manuel; remettre ensuite sur `auto` |
 
 Le traitement est incremental: le catalogue est mis a jour, puis Supabase fournit seulement les lots dont `annonce_fetched_at` ou `ct_ocr_done_at` est encore vide. Un champ absent d une page Alcopa ulterieure est omis de l upsert afin de ne pas effacer une valeur deja connue, notamment la mise a prix apres la vente. Railway utilise les horaires UTC et ignore un nouveau declenchement si le precedent tourne encore.
 
@@ -113,16 +114,17 @@ Le fichier `interencheres-cron.mjs` automatise la recuperation du soir. Il lit l
 
 La fusion ne cree jamais de ligne: elle utilise un `PATCH` filtre par `id`, `sale_id` et `date_vente` sur des lots deja lus dans Supabase. Seuls `prix_adjudication_eur`, `statut`, `canal`, `url_interencheres`, `lot_interencheres_id` et la remise a zero de `enchere_courante` peuvent etre modifies. Une vente incomplete, ambigue ou bloquee ne produit aucune ecriture.
 
-Creer un troisieme service Railway connecte au meme depot:
+Le meme service `alcopa-cron` et le meme fichier `/railway-cron.json` lancent aussi ce traitement. Ajouter les variables `IE_*` sur ce service, en plus des variables Supabase deja presentes.
 
-1. Nommer le service `interencheres-cron`.
-2. Definir le chemin de configuration sur `/railway-interencheres-cron.json`.
-3. Ajouter `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY`.
-4. Conserver Amsterdam et ne pas generer de domaine public.
-5. Pour le premier lancement, definir `IE_DRY_RUN=true`, `IE_FORCE=true` et eventuellement `IE_ROOMS=lyon`.
-6. Verifier les logs `ie_sales_discovered`, `ie_sale_api_scraped`, `ie_sale_scraped` et `ie_cron_finished`, puis remettre `IE_DRY_RUN=false` et `IE_FORCE=false`.
+Premier test manuel recommande:
 
-Le planning `30 16,17,18 * * *` couvre le changement ambiant Europe/Paris. Le script refuse de travailler avant 18 h locale; les passages suivants sont idempotents et servent de nouvelles tentatives. Il ne resout pas les CAPTCHA et s arrete explicitement si Cloudflare presente un challenge.
+1. Definir `COMBINED_CRON_JOB=interencheres`, `IE_DRY_RUN=true`, `IE_FORCE=true` et eventuellement `IE_ROOMS=lyon`.
+2. Lancer manuellement le service et verifier `combined_cron_dispatch`, `ie_sales_discovered`, `ie_sale_api_scraped`, `ie_sale_scraped`, `ie_cron_finished` et `combined_cron_finished`.
+3. Remettre `COMBINED_CRON_JOB=auto`. Apres validation, remettre aussi `IE_DRY_RUN=false` et `IE_FORCE=false`.
+
+Le planning `15 2,16,17,18 * * *` couvre le changement d heure Europe/Paris. En ete, le passage de `16:15 UTC` correspond a `18:15` a Paris. En hiver, ce premier passage est ignore par la barriere horaire et celui de `17:15 UTC` prend le relais. Les passages suivants sont idempotents et servent de nouvelles tentatives. Railway ignore un declenchement si l execution precedente tourne encore. Le script ne resout pas les CAPTCHA et s arrete explicitement si Cloudflare presente un challenge.
+
+Le fichier `/railway-interencheres-cron.json` reste disponible uniquement si le plan Railway permet plus tard de separer Interencheres dans un troisieme service.
 
 Variables principales:
 
