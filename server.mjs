@@ -1,9 +1,18 @@
 import http from 'node:http';
-import { BASE_URL, DEFAULT_URL, describeBlock, fetchHtml, scrape, toCsv } from './scrape-alcopa.mjs';
+import {
+  BASE_URL,
+  DEFAULT_URL,
+  closeBrowser,
+  describeBlock,
+  fetchHtml,
+  getTransportName,
+  scrape,
+  toCsv,
+} from './scrape-alcopa.mjs';
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
-const APP_VERSION = '2026-09-09-session-warmup-retry-v3';
+const APP_VERSION = '2026-09-10-browser-transport-v1';
 const DEFAULT_MAX_PAGES = Number(process.env.DEFAULT_MAX_PAGES || 30);
 const MAX_ALLOWED_PAGES = Number(process.env.MAX_ALLOWED_PAGES || 40);
 const DEFAULT_DELAY_MS = Number(process.env.DEFAULT_DELAY_MS || 350);
@@ -78,6 +87,7 @@ async function handleScrape(req, res, url) {
 
   send(res, result.blocked ? 502 : 200, {
     ok: !result.blocked,
+    transport: getTransportName(),
     url: targetUrl,
     lots: result.lots.length,
     pages: result.pagesSeen,
@@ -115,6 +125,7 @@ async function handleDebug(res, url) {
   send(res, 200, {
     ok: true,
     version: APP_VERSION,
+    transport: getTransportName(),
     egressIp: ip,
     nodeVersion: process.version,
     homepage: describeBlock(`${BASE_URL}/`, home),
@@ -136,6 +147,7 @@ const server = http.createServer(async (req, res) => {
         ok: true,
         service: 'alcopa-scraper',
         version: APP_VERSION,
+        transport: getTransportName(),
         endpoints: {
           scrape: '/scrape?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=30',
           csv: '/scrape?format=csv&url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=30',
@@ -181,5 +193,8 @@ server.listen(PORT, HOST, () => {
 
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, closing HTTP server');
-  server.close(() => process.exit(0));
+  server.close(async () => {
+    await closeBrowser();
+    process.exit(0);
+  });
 });

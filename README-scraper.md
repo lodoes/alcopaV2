@@ -1,11 +1,18 @@
-# Scraper Alcopa V1
+# Scraper Alcopa
 
-V1 sans dependances: Node `fetch`, parsing HTML serveur, pagination `page=N`, export JSON/CSV compatible avec le dashboard et la table Supabase `alcopa_lots`.
+Scraper Node avec deux transports: `fetch` direct pour le developpement et Chromium headless pour Railway. Le parseur HTML, la pagination `page=N` et les exports JSON/CSV restent communs aux deux modes.
 
 ## Test rapide
 
 ```powershell
 node .\scrape-alcopa.mjs --url "https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371" --out alcopa-lyon-12371.json --csv alcopa-lyon-12371.csv --max-pages 3
+```
+
+Test avec le navigateur installe localement:
+
+```powershell
+$env:SCRAPER_TRANSPORT="browser"
+node .\scrape-alcopa.mjs --url "https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371" --out alcopa-browser.json --max-pages 1
 ```
 
 ## Parse local
@@ -23,20 +30,29 @@ node .\scrape-alcopa.mjs --html .\alcopa-sample-lyon-12371.html --out sample.jso
 | `/scrape?format=csv&url=...` | Meme scrape en CSV |
 | `/debug?url=...` | Diagnostic: IP de sortie de l'hebergeur + statut brut renvoye par Alcopa |
 
-## Reseau et anti-bot
+## Transport navigateur sur Railway
 
-Alcopa est servi par nginx derriere CloudFront. Chaque requete part maintenant avec:
+Le `Dockerfile` installe Chromium et configure automatiquement `SCRAPER_TRANSPORT=browser`. Railway utilise ce fichier grace a la section `build` de `railway.json`.
 
-- une session prealable sur `https://www.alcopa-auction.fr/` pour recuperer les cookies `hl` et `PHPSESSID`;
-- des headers de navigateur complets (`user-agent` Chrome, `sec-fetch-*`, `accept-language: fr-FR`) et un `referer` chaine de page en page;
-- jusqu'a 4 tentatives avec backoff exponentiel sur `403 405 408 425 429 500 502 503 504`, challenge ou erreur reseau, en renouvelant la session entre deux essais.
+Le navigateur est reutilise pendant le scraping afin de conserver les cookies. En cas de challenge explicite, le scraper s'arrete et renvoie `blocked: true`; il ne tente pas de resoudre automatiquement un CAPTCHA.
 
-Si les tentatives echouent, le scraper ne leve plus d'exception: il renvoie les lots deja collectes avec `blocked: true` et un objet `blockReason` (statut, `allow`, `x-amz-cf-pop`, extrait du corps). Il ne tente pas de contourner une protection anti-bot.
+Apres le deploiement, `/health` doit afficher:
+
+```json
+{
+  "version": "2026-09-10-browser-transport-v1",
+  "transport": "browser"
+}
+```
 
 ### Variables d'environnement
 
 | Variable | Defaut | Role |
 | --- | --- | --- |
+| `SCRAPER_TRANSPORT` | `direct` hors Docker, `browser` dans Docker | Selectionne `fetch` ou Chromium |
+| `CHROMIUM_EXECUTABLE_PATH` | `/usr/bin/chromium` dans Docker | Chemin du navigateur |
+| `BROWSER_TIMEOUT_MS` | `45000` | Delai maximal de navigation |
+| `BROWSER_SETTLE_MS` | `750` | Courte attente apres le chargement DOM |
 | `SCRAPER_USER_AGENT` | UA Chrome 140 Windows | Surcharge du user-agent |
 | `SCRAPER_MAX_ATTEMPTS` | `4` | Nombre de tentatives par page |
 | `DEFAULT_MAX_PAGES` / `MAX_ALLOWED_PAGES` | `30` / `40` | Pagination par defaut et plafond |
@@ -44,4 +60,4 @@ Si les tentatives echouent, le scraper ne leve plus d'exception: il renvoie les 
 
 ### HTTP 405 en production
 
-Un `HTTP 405` sur une requete `GET` ne vient pas du code: depuis un poste en France, la meme URL repond `200`. C'est CloudFront/le WAF d'Alcopa qui refuse l'IP de sortie de l'hebergeur. Pour confirmer, appeler `/debug` sur le service deploye et comparer `egressIp`, `homepage.status` et `target.status`. Si les deux statuts sont `405` alors qu'ils sont `200` en local, il faut sortir par une IP residentielle francaise (proxy) plutot que modifier le parsing.
+Un `HTTP 405` sur une requete `GET` peut provenir du profil de la requete ou de l'environnement cloud. Appeler `/debug` sur le service deploye et comparer `homepage.status`, `target.status` et `transport`. Si Chromium est egalement refuse, les solutions propres sont un acces autorise par Alcopa ou un fournisseur de collecte gere compatible avec leurs conditions d'utilisation.

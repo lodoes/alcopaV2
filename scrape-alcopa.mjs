@@ -101,9 +101,14 @@ function pageUrl(sourceUrl, page) {
 const USER_AGENT = process.env.SCRAPER_USER_AGENT
   || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
 const MAX_ATTEMPTS = Math.max(1, Number(process.env.SCRAPER_MAX_ATTEMPTS || 4));
+const SCRAPER_TRANSPORT = (process.env.SCRAPER_TRANSPORT || 'direct').toLowerCase();
+const BROWSER_TIMEOUT_MS = Math.max(5_000, Number(process.env.BROWSER_TIMEOUT_MS || 45_000));
+const BROWSER_SETTLE_MS = Math.max(0, Number(process.env.BROWSER_SETTLE_MS || 750));
 const RETRY_STATUSES = new Set([403, 405, 408, 425, 429, 500, 502, 503, 504]);
 
 const session = { cookies: new Map(), warm: false };
+let browserPromise = null;
+let browserContextPromise = null;
 
 function storeCookies(res) {
   const raw = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [];
@@ -140,8 +145,14 @@ function browserHeaders({ referer = '' } = {}) {
   return headers;
 }
 
+const CHALLENGE_PATTERNS = [
+  /awsWafCookieDomainList|gokuProps|token.awswaf.com|human verification/i,
+  /cf-chl-|attention required|just a moment/i,
+  /datadome|are you a human|px-captcha/i,
+];
+
 function isChallenge(html) {
-  return /cf-chl-|attention required|just a moment|datadome|are you a human/i.test(html);
+  return CHALLENGE_PATTERNS.some((pattern) => pattern.test(html));
 }
 
 async function rawFetch(url, referer) {
@@ -157,11 +168,95 @@ async function rawFetch(url, referer) {
   };
 }
 
+async function launchChromium() {
+  const { chromium } = await import('playwright-core');
+  const common = {
+    headless: true,
+    args: ['--disable-dev-shm-usage', '--no-sandbox'],
+  };
+  const configuredPath = process.env.CHROMIUM_EXECUTABLE_PATH?.trim();
+  const candidates = configuredPath
+    ? [{ executablePath: configuredPath }]
+    : process.platform === 'win32'
+      ? [{ channel: 'chrome' }, { channel: 'msedge' }]
+      : [{ executablePath: '/usr/bin/chromium' }, { executablePath: '/usr/bin/chromium-browser' }];
+
+  let lastError = null;
+  for (const candidate of candidates) {
+    try {
+      return await chromium.launch({ ...common, ...candidate });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw new Error(`Chromium introuvable: ${lastError?.message || 'aucun executable compatible'}`);
+}
+
+async function getBrowserContext() {
+  if (!browserPromise) {
+    browserPromise = launchChromium().catch((error) => {
+      browserPromise = null;
+      throw error;
+    });
+  }
+  if (!browserContextPromise) {
+    browserContextPromise = browserPromise.then((browser) => browser.newContext({
+      locale: 'fr-FR',
+      timezoneId: 'Europe/Paris',
+      viewport: { width: 1440, height: 1000 },
+    })).catch((error) => {
+      browserContextPromise = null;
+      throw error;
+    });
+  }
+  return browserContextPromise;
+}
+
+async function browserFetch(url, referer) {
+  const context = await getBrowserContext();
+  const page = await context.newPage();
+  try {
+    const response = await page.goto(url, {
+      waitUntil: 'domcontentloaded',
+      timeout: BROWSER_TIMEOUT_MS,
+      referer: referer && referer.startsWith(BASE_URL) ? referer : undefined,
+    });
+    if (BROWSER_SETTLE_MS) await page.waitForTimeout(BROWSER_SETTLE_MS);
+    const html = await page.content();
+    return {
+      status: response?.status() || 0,
+      finalUrl: page.url(),
+      headers: response ? await response.allHeaders() : {},
+      html,
+      challenge: isChallenge(html),
+      transport: 'browser',
+    };
+  } finally {
+    await page.close();
+  }
+}
+
+function transportFetch(url, referer) {
+  if (SCRAPER_TRANSPORT === 'browser') return browserFetch(url, referer);
+  if (SCRAPER_TRANSPORT !== 'direct') {
+    throw new Error(`SCRAPER_TRANSPORT invalide: ${SCRAPER_TRANSPORT}`);
+  }
+  return rawFetch(url, referer);
+}
+
+async function clearTransportSession() {
+  session.cookies.clear();
+  if (browserContextPromise) {
+    const context = await browserContextPromise.catch(() => null);
+    if (context) await context.clearCookies();
+  }
+}
+
 async function warmUpSession(force = false) {
   if (session.warm && !force) return true;
-  if (force) session.cookies.clear();
+  if (force) await clearTransportSession();
   try {
-    const res = await rawFetch(`${BASE_URL}/`, '');
+    const res = await transportFetch(`${BASE_URL}/`, '');
     session.warm = res.status >= 200 && res.status < 400;
     return session.warm;
   } catch {
@@ -175,11 +270,15 @@ async function fetchHtml(url, { referer = '' } = {}) {
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     await warmUpSession(attempt > 1);
     try {
-      last = await rawFetch(url, referer || `${BASE_URL}/`);
+      last = await transportFetch(url, referer || `${BASE_URL}/`);
     } catch (error) {
       last = { status: 0, finalUrl: url, headers: {}, html: '', challenge: false, networkError: error.message };
     }
-    const retryable = last.status === 0 || last.challenge || RETRY_STATUSES.has(last.status);
+    if (last.challenge) {
+      console.error(`[stop] ${url}: challenge anti-bot detecte, aucune nouvelle tentative`);
+      return { ...last, attempts: attempt };
+    }
+    const retryable = last.status === 0 || RETRY_STATUSES.has(last.status);
     if (!retryable) return { ...last, attempts: attempt };
     if (attempt < MAX_ATTEMPTS) {
       console.error(`[retry ${attempt}/${MAX_ATTEMPTS}] ${url} -> statut ${last.status}${last.challenge ? ' (challenge)' : ''}`);
@@ -197,6 +296,7 @@ function describeBlock(url, response) {
     challenge: Boolean(response.challenge),
     networkError: response.networkError || null,
     attempts: response.attempts || 1,
+    transport: response.transport || SCRAPER_TRANSPORT,
     upstream: {
       server: response.headers?.server || null,
       via: response.headers?.via || null,
@@ -207,6 +307,20 @@ function describeBlock(url, response) {
     },
     bodyPreview: stripTags(response.html || '').slice(0, 500),
   };
+}
+
+function getTransportName() {
+  return SCRAPER_TRANSPORT;
+}
+
+async function closeBrowser() {
+  const context = browserContextPromise ? await browserContextPromise.catch(() => null) : null;
+  browserContextPromise = null;
+  if (context) await context.close().catch(() => {});
+  const browser = browserPromise ? await browserPromise.catch(() => null) : null;
+  browserPromise = null;
+  if (browser) await browser.close().catch(() => {});
+  session.warm = false;
 }
 
 function decodeHtml(value = '') {
@@ -479,7 +593,17 @@ async function scrape(args) {
   };
 }
 
-export { DEFAULT_URL, BASE_URL, CSV_HEADERS, scrape, toCsv, fetchHtml, describeBlock };
+export {
+  DEFAULT_URL,
+  BASE_URL,
+  CSV_HEADERS,
+  scrape,
+  toCsv,
+  fetchHtml,
+  describeBlock,
+  getTransportName,
+  closeBrowser,
+};
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
@@ -509,6 +633,6 @@ async function main() {
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   main().catch((error) => {
     console.error(error.stack || error.message);
-    process.exit(1);
-  });
+    process.exitCode = 1;
+  }).finally(closeBrowser);
 }

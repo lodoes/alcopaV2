@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+*.json
+*.csv
+*.html
+!package.json
+!package-lock.json
+railway.json
+README-scraper.md
+supabase_alcopa_lots.sql
