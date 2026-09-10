@@ -105,9 +105,24 @@ function serializeLot(lot, includeDetails) {
     ? [...ALCOPA_CATALOG_COLUMNS, ...DETAIL_LOT_COLUMNS]
     : ALCOPA_CATALOG_COLUMNS;
   const row = {};
-  for (const column of columns) row[column] = lot[column] ?? null;
+  for (const column of columns) {
+    const value = lot[column];
+    if (!includeDetails && (value == null || value === '')) continue;
+    row[column] = value ?? null;
+  }
   row.raw_json = lot;
   return row;
+}
+
+function groupRowsByColumns(rows) {
+  const groups = new Map();
+  for (const row of rows) {
+    const columns = Object.keys(row).sort().join(',');
+    const group = groups.get(columns) || [];
+    group.push(row);
+    groups.set(columns, group);
+  }
+  return groups;
 }
 
 function createSupabaseStore(options = {}) {
@@ -155,14 +170,19 @@ function createSupabaseStore(options = {}) {
   async function upsertLots(lots, { includeDetails = false } = {}) {
     if (!lots.length) return 0;
     let saved = 0;
-    for (const batch of chunks(lots, batchSize)) {
-      await request(lotsTable, {
-        method: 'POST',
-        query: { on_conflict: 'merge_key' },
-        prefer: 'resolution=merge-duplicates,return=minimal',
-        body: batch.map((lot) => serializeLot(lot, includeDetails)),
-      });
-      saved += batch.length;
+    const groups = groupRowsByColumns(
+      lots.map((lot) => serializeLot(lot, includeDetails)),
+    );
+    for (const [columns, rows] of groups) {
+      for (const batch of chunks(rows, batchSize)) {
+        await request(lotsTable, {
+          method: 'POST',
+          query: { on_conflict: 'merge_key', columns },
+          prefer: 'resolution=merge-duplicates,return=minimal',
+          body: batch,
+        });
+        saved += batch.length;
+      }
     }
     return saved;
   }
@@ -228,5 +248,6 @@ export {
   DETAIL_LOT_COLUMNS,
   INTERENCHERES_RESULT_COLUMNS,
   createSupabaseStore,
+  groupRowsByColumns,
   serializeLot,
 };

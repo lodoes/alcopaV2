@@ -97,7 +97,7 @@ Variables principales du cron:
 | `CRON_MAX_RUNTIME_MINUTES` | `240` | Arrete proprement entre deux etapes quand la duree est atteinte |
 | `CRON_MAX_SALES` | `0` | Limite de test; `0` traite toutes les ventes trouvees |
 
-Le traitement est incremental: le catalogue est mis a jour, puis Supabase fournit seulement les lots dont `annonce_fetched_at` ou `ct_ocr_done_at` est encore vide. Railway utilise les horaires UTC et ignore un nouveau declenchement si le precedent tourne encore.
+Le traitement est incremental: le catalogue est mis a jour, puis Supabase fournit seulement les lots dont `annonce_fetched_at` ou `ct_ocr_done_at` est encore vide. Un champ absent d une page Alcopa ulterieure est omis de l upsert afin de ne pas effacer une valeur deja connue, notamment la mise a prix apres la vente. Railway utilise les horaires UTC et ignore un nouveau declenchement si le precedent tourne encore.
 
 ## Resultats d adjudication Interencheres
 
