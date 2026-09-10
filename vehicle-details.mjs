@@ -279,6 +279,7 @@ async function enrichLots(lots, options) {
     ctAttempted: 0,
     ctAnalyzed: 0,
     errors: 0,
+    errorSamples: [],
     blocked: false,
     blockReason: null,
   };
@@ -297,14 +298,34 @@ async function enrichLots(lots, options) {
     previousUrl = lot.url_alcopa;
     stats.detailsAttempted += 1;
     if (!result.lot.detail_error) stats.detailsSucceeded += 1;
-    else stats.errors += 1;
+    else {
+      stats.errors += 1;
+      if (stats.errorSamples.length < 5) {
+        stats.errorSamples.push({
+          lot: result.lot.lot_number || result.lot.alcopa_id || null,
+          url: result.lot.url_alcopa || null,
+          phase: 'detail',
+          error: result.lot.detail_error,
+        });
+      }
+    }
     if (result.lot.url_ct) stats.ctFound += 1;
     if (result.ctAttempted) {
       stats.ctAttempted += 1;
       ocrSelected += 1;
     }
     if (result.ctAnalyzed) stats.ctAnalyzed += 1;
-    if (result.lot.ct_error) stats.errors += 1;
+    if (result.lot.ct_error) {
+      stats.errors += 1;
+      if (stats.errorSamples.length < 5) {
+        stats.errorSamples.push({
+          lot: result.lot.lot_number || result.lot.alcopa_id || null,
+          url: result.lot.url_ct || result.lot.url_alcopa || null,
+          phase: 'ct',
+          error: result.lot.ct_error,
+        });
+      }
+    }
 
     options.onProgress?.({ ...stats, current: position + 1, total: indexes.length, lot: result.lot });
     if (result.blocked) {
