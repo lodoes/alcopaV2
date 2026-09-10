@@ -517,6 +517,21 @@ function attrMatch(html, regex) {
   return match ? decodeHtml(match[1]).trim() : '';
 }
 
+function extractThumbnail(card) {
+  const imageTags = card.match(/<img\b[^>]*>/gi) || [];
+  for (const imageTag of imageTags) {
+    for (const attribute of ['data-src', 'data-original', 'data-lazy-src', 'src']) {
+      const value = attrMatch(imageTag, new RegExp(`\\b${attribute}=["']([^"']+)["']`, 'i'));
+      if (value && !/^data:/i.test(value)) return absolutize(value);
+    }
+
+    const srcset = attrMatch(imageTag, /\b(?:data-srcset|srcset)=["']([^"']+)["']/i);
+    const firstSource = srcset.split(',')[0]?.trim().split(/\s+/)[0] || '';
+    if (firstSource && !/^data:/i.test(firstSource)) return absolutize(firstSource);
+  }
+  return '';
+}
+
 function detectSalle(url, html) {
   const fromUrl = url.match(/salle-de-vente-encheres\/([^/?#]+)\/(\d+)/i);
   if (fromUrl) return fromUrl[1].replace(/-/g, ' ').toLowerCase();
@@ -579,7 +594,7 @@ function parseCard(card, context) {
   const fichePath = attrMatch(card, /<div class="card-title"[\s\S]*?<a\s+href="([^"]+)"/i);
   const urlAlcopa = absolutize(fichePath);
   const alcopaId = (urlAlcopa.match(/-(\d+)(?:[/?#]|$)/) || [])[1] || '';
-  const thumbnail = attrMatch(card, /<img\s+src="([^"]+)"/i);
+  const thumbnail = extractThumbnail(card);
   const modele = textMatch(card, /<p class="mb-2">\s*([\s\S]*?)<\/p>/i);
   const specHtml = (card.match(/<p class="mb-1">([\s\S]*?)<\/p>/i) || [])[1] || '';
   const spec = parseSpec(specHtml);
@@ -773,6 +788,7 @@ export {
   DEFAULT_URL,
   BASE_URL,
   CSV_HEADERS,
+  parseHtml,
   scrape,
   toCsv,
   fetchHtml,
