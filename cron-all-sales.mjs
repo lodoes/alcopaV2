@@ -30,6 +30,11 @@ function log(event, data = {}) {
   console.log(JSON.stringify({ time: new Date().toISOString(), event, ...data }));
 }
 
+process.once('SIGTERM', () => {
+  log('cron_sigterm', { message: 'Railway a demande un arret propre du cron.' });
+  closeBrowser().finally(() => process.exit(0));
+});
+
 function replaceLots(target, replacements) {
   const byKey = new Map(target.map((lot) => [lot.merge_key || lot.id, lot]));
   for (const lot of replacements) byKey.set(lot.merge_key || lot.id, lot);

@@ -73,7 +73,7 @@ Utiliser un deuxieme service Railway connecte au meme depot GitHub:
 4. Ajouter `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY` dans Variables. Ne jamais mettre la cle service-role dans Git.
 5. Ne pas generer de domaine public pour ce service. Il s'execute puis s'arrete.
 
-`railway-cron.json` lance `npm run cron` tous les jours a `02:15 UTC` et conserve la region Amsterdam. Le service API existant continue d'utiliser `railway.json` et `npm start`.
+`railway-cron.json` lance `node cron-all-sales.mjs` tous les jours a `02:15 UTC` et conserve la region Amsterdam. Le service API existant continue d'utiliser `railway.json` et `node server.mjs`. Le lancement direct evite que `npm` transforme un arret normal de Railway en faux message `npm error ... SIGTERM`.
 
 Premier lancement recommande:
 

@@ -5,7 +5,7 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "startCommand": "npm start",
+    "startCommand": "node server.mjs",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 300,
     "multiRegionConfig": {
