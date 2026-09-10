@@ -32,7 +32,7 @@ node .\scrape-alcopa.mjs --html .\alcopa-sample-lyon-12371.html --out sample.jso
 
 ## Transport navigateur sur Railway
 
-Le `Dockerfile` installe Chromium et configure automatiquement `SCRAPER_TRANSPORT=browser`. Railway utilise ce fichier grace a la section `build` de `railway.json`.
+Le `Dockerfile` installe Chromium et configure automatiquement `SCRAPER_TRANSPORT=browser`. Railway utilise ce fichier grace a la section `build` de `railway.json`. Une seule replique est placee en EU West (Amsterdam) afin d'heberger le service au plus pres du site francais.
 
 Le navigateur est reutilise pendant le scraping afin de conserver les cookies. En cas de challenge explicite, le scraper s'arrete et renvoie `blocked: true`; il ne tente pas de resoudre automatiquement un CAPTCHA.
 

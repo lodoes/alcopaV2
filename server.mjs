@@ -148,6 +148,7 @@ const server = http.createServer(async (req, res) => {
         service: 'alcopa-scraper',
         version: APP_VERSION,
         transport: getTransportName(),
+        railwayRegion: process.env.RAILWAY_REPLICA_REGION || null,
         endpoints: {
           scrape: '/scrape?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=30',
           csv: '/scrape?format=csv&url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=30',
