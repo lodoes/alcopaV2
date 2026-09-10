@@ -245,6 +245,35 @@ async function rawFetchBinary(url, referer) {
   };
 }
 
+function apiHeaders({ referer = '', headers = {} } = {}) {
+  const values = {
+    accept: 'application/json',
+    'accept-language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
+    'cache-control': 'no-cache',
+    pragma: 'no-cache',
+    'user-agent': USER_AGENT,
+    ...headers,
+  };
+  if (referer) values.referer = referer;
+  return values;
+}
+
+async function rawFetchJson(url, referer, headers) {
+  const res = await fetch(url, {
+    headers: apiHeaders({ referer, headers }),
+    redirect: 'follow',
+  });
+  const text = await res.text();
+  return {
+    status: res.status,
+    finalUrl: res.url,
+    headers: Object.fromEntries(res.headers.entries()),
+    text,
+    challenge: isChallenge(text),
+    transport: 'direct',
+  };
+}
+
 async function launchChromium() {
   const { chromium } = await import('playwright-core');
   const common = {
@@ -345,6 +374,24 @@ async function browserFetchBinary(url, referer) {
   };
 }
 
+async function browserFetchJson(url, referer, headers) {
+  const context = await getBrowserContext();
+  const response = await context.request.get(url, {
+    failOnStatusCode: false,
+    headers: apiHeaders({ referer, headers }),
+    timeout: BROWSER_TIMEOUT_MS,
+  });
+  const text = await response.text();
+  return {
+    status: response.status(),
+    finalUrl: response.url(),
+    headers: response.headers(),
+    text,
+    challenge: isChallenge(text),
+    transport: 'browser',
+  };
+}
+
 function transportFetch(url, referer) {
   if (SCRAPER_TRANSPORT === 'browser') return browserFetch(url, referer);
   if (SCRAPER_TRANSPORT !== 'direct') {
@@ -359,6 +406,14 @@ function transportFetchBinary(url, referer) {
     throw new Error(`SCRAPER_TRANSPORT invalide: ${SCRAPER_TRANSPORT}`);
   }
   return rawFetchBinary(url, referer);
+}
+
+function transportFetchJson(url, referer, headers) {
+  if (SCRAPER_TRANSPORT === 'browser') return browserFetchJson(url, referer, headers);
+  if (SCRAPER_TRANSPORT !== 'direct') {
+    throw new Error(`SCRAPER_TRANSPORT invalide: ${SCRAPER_TRANSPORT}`);
+  }
+  return rawFetchJson(url, referer, headers);
 }
 
 async function clearTransportSession() {
@@ -417,6 +472,29 @@ async function fetchBinary(url, { referer = '' } = {}) {
         finalUrl: url,
         headers: {},
         buffer: Buffer.alloc(0),
+        challenge: false,
+        networkError: error.message,
+      };
+    }
+    if (last.challenge) return { ...last, attempts: attempt };
+    const retryable = last.status === 0 || RETRY_STATUSES.has(last.status);
+    if (!retryable) return { ...last, attempts: attempt };
+    if (attempt < MAX_ATTEMPTS) await sleep(500 * (2 ** (attempt - 1)));
+  }
+  return { ...last, attempts: MAX_ATTEMPTS };
+}
+
+async function fetchJson(url, { referer = '', headers = {} } = {}) {
+  let last = null;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    try {
+      last = await transportFetchJson(url, referer, headers);
+    } catch (error) {
+      last = {
+        status: 0,
+        finalUrl: url,
+        headers: {},
+        text: '',
         challenge: false,
         networkError: error.message,
       };
@@ -793,6 +871,7 @@ export {
   toCsv,
   fetchHtml,
   fetchBinary,
+  fetchJson,
   enrichVehicles,
   describeBlock,
   getTransportName,

@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 
 const IE_BASE_URL = 'https://www.interencheres.com';
+const IE_SEARCH_URL = 'https://search.interencheres.com/v1/search';
 const IE_AUCTIONEER_DIRECTORY_URL = `${IE_BASE_URL}/commissaire-priseur/`;
 const KNOWN_ALCOPA_AUCTIONEERS = [
   { room: 'beauvais', auctioneer_id: '508', url: `${IE_BASE_URL}/commissaire-priseur/alcopa-auction-beauvais-508/` },
@@ -85,6 +86,73 @@ function absoluteInterencheresUrl(value, baseUrl = IE_BASE_URL) {
   } catch {
     return null;
   }
+}
+
+function interencheresApiItemsUrl(saleId) {
+  const url = new URL(`${IE_SEARCH_URL}/ie4_items`);
+  url.searchParams.set('filters[sale]', String(saleId));
+  return url.href;
+}
+
+function interencheresItemUrl(saleUrl, itemId) {
+  const url = absoluteInterencheresUrl(saleUrl);
+  if (!url || !itemId) return url || '';
+  const parsed = new URL(url);
+  parsed.search = '';
+  parsed.hash = '';
+  parsed.pathname = `${parsed.pathname.replace(/\/$/, '')}/lot-${itemId}.html`;
+  return parsed.href;
+}
+
+function contentRangeTotal(headers = {}) {
+  const value = headers['content-range'] || headers['Content-Range'] || '';
+  const match = String(value).match(/\/(\d+)\s*$/);
+  return match ? Number(match[1]) : null;
+}
+
+function parseInterencheresApiItem(item, saleUrl) {
+  const itemId = Number(item?.id);
+  const lotNumber = Number(item?.meta?.order_number?.primary);
+  if (!Number.isFinite(itemId) || !Number.isFinite(lotNumber)) return null;
+
+  const auctioned = item?.pricing?.auctioned;
+  let statut = 'inconnu';
+  let price = null;
+  if (item?.states?.suppressed === true) {
+    statut = 'retire';
+  } else if (auctioned?.sold === true) {
+    statut = 'adjuge';
+    const value = Number(auctioned.price);
+    price = Number.isFinite(value) ? value : null;
+  } else if (auctioned?.sold === false) {
+    statut = 'invendu';
+  }
+
+  const auctionType = normalizeText(`${auctioned?.type || ''} ${auctioned?.site || ''}`);
+  let canal = '';
+  if (/live|online|interencheres/.test(auctionType)) canal = 'internet';
+  else if (/physical|salle/.test(auctionType)) canal = 'salle';
+
+  return {
+    lot_number: lotNumber,
+    lot_interencheres_id: String(itemId),
+    description: cleanText(
+      item?.title_translations?.['fr-FR']
+      || item?.title_translations?.['en-US']
+      || item?.description
+      || '',
+    ),
+    prix_adjudication_eur: price,
+    statut,
+    canal,
+    url_interencheres: interencheresItemUrl(saleUrl, itemId),
+  };
+}
+
+function parseInterencheresApiPage(text, saleUrl) {
+  const payload = typeof text === 'string' ? JSON.parse(text) : text;
+  if (!Array.isArray(payload)) throw new Error('Reponse API Interencheres invalide');
+  return payload.map((item) => parseInterencheresApiItem(item, saleUrl)).filter(Boolean);
 }
 
 function parseAuctioneerLinks(html, baseUrl = IE_AUCTIONEER_DIRECTORY_URL) {
@@ -338,6 +406,112 @@ async function scrapeInterencheresSale(options) {
   };
 }
 
+async function scrapeInterencheresSaleApi(options) {
+  const {
+    url,
+    saleId,
+    metadata = null,
+    fetchJson,
+    maxPages = 10,
+    pageSize = 200,
+    delayMs = 250,
+  } = options;
+  const apiUrl = interencheresApiItemsUrl(saleId);
+  const byLotId = new Map();
+  let pagesSeen = 0;
+  let expectedPages = 1;
+  let total = null;
+  let complete = false;
+  let error = null;
+
+  for (let page = 0; page < maxPages; page += 1) {
+    const start = page * pageSize;
+    const end = start + pageSize - 1;
+    const response = await fetchJson(apiUrl, {
+      referer: url,
+      headers: {
+        'x-range': `items=${start}-${end}`,
+        'x-requested-with': 'XMLHttpRequest',
+      },
+    });
+    if (response.challenge || response.status < 200 || response.status >= 400) {
+      return {
+        url,
+        apiUrl,
+        lots: [...byLotId.values()],
+        pagesSeen,
+        expectedPages,
+        metadata,
+        blocked: Boolean(response.challenge),
+        complete: false,
+        transport: 'api',
+        error: `API Interencheres HTTP ${response.status || 0}${response.challenge ? ' (challenge anti-bot)' : ''}`,
+      };
+    }
+
+    let lots;
+    try {
+      lots = parseInterencheresApiPage(response.text, url);
+    } catch (parseError) {
+      return {
+        url,
+        apiUrl,
+        lots: [...byLotId.values()],
+        pagesSeen,
+        expectedPages,
+        metadata,
+        blocked: false,
+        complete: false,
+        transport: 'api',
+        error: parseError.message,
+      };
+    }
+
+    total = contentRangeTotal(response.headers) ?? total;
+    expectedPages = total == null
+      ? Math.max(expectedPages, page + (lots.length >= pageSize ? 2 : 1))
+      : Math.max(1, Math.ceil(total / pageSize));
+    let newLots = 0;
+    for (const lot of lots) {
+      const key = lot.lot_interencheres_id || `${lot.lot_number}`;
+      if (!byLotId.has(key)) newLots += 1;
+      byLotId.set(key, lot);
+    }
+    pagesSeen = page + 1;
+
+    if (total != null && byLotId.size >= total) {
+      complete = true;
+      break;
+    }
+    if (lots.length < pageSize) {
+      complete = lots.length > 0 || page > 0;
+      break;
+    }
+    if (!newLots) {
+      error = `Pagination API Interencheres interrompue a la page ${page + 1}`;
+      break;
+    }
+    if (page + 1 < maxPages && delayMs) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  if (!complete && !error) error = `Limite de ${maxPages} pages API atteinte`;
+  return {
+    url,
+    apiUrl,
+    lots: [...byLotId.values()],
+    pagesSeen,
+    expectedPages,
+    total,
+    metadata,
+    blocked: false,
+    complete,
+    transport: 'api',
+    error,
+  };
+}
+
 function scoreSalePair(localSale, ieSale) {
   const localNumbers = new Set(localSale.lots.map((lot) => Number(lot.lot_number)).filter(Number.isFinite));
   const ieNumbers = new Set(ieSale.lots.map((lot) => Number(lot.lot_number)).filter(Number.isFinite));
@@ -392,14 +566,20 @@ function matchInterencheresSales(localSales, ieSales) {
 export {
   IE_AUCTIONEER_DIRECTORY_URL,
   IE_BASE_URL,
+  IE_SEARCH_URL,
   KNOWN_ALCOPA_AUCTIONEERS,
   cleanText,
+  contentRangeTotal,
+  interencheresApiItemsUrl,
   matchInterencheresSales,
   normalizeRoom,
   parseAuctioneerLinks,
   parseAuctioneerSales,
   parseFrenchDate,
+  parseInterencheresApiItem,
+  parseInterencheresApiPage,
   parseInterencheresPage,
   parseSaleMetadata,
   scrapeInterencheresSale,
+  scrapeInterencheresSaleApi,
 };

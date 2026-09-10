@@ -13,7 +13,7 @@ import {
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
-const APP_VERSION = '2026-09-10-interencheres-cron-v1';
+const APP_VERSION = '2026-09-10-interencheres-api-v1';
 const DEFAULT_MAX_PAGES = Number(process.env.DEFAULT_MAX_PAGES || 30);
 const MAX_ALLOWED_PAGES = Number(process.env.MAX_ALLOWED_PAGES || 40);
 const DEFAULT_DELAY_MS = Number(process.env.DEFAULT_DELAY_MS || 350);

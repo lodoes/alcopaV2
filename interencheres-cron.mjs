@@ -3,7 +3,13 @@
 import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 
-import { closeBrowser, describeBlock, fetchHtml, getTransportName } from './scrape-alcopa.mjs';
+import {
+  closeBrowser,
+  describeBlock,
+  fetchHtml,
+  fetchJson,
+  getTransportName,
+} from './scrape-alcopa.mjs';
 import {
   IE_AUCTIONEER_DIRECTORY_URL,
   KNOWN_ALCOPA_AUCTIONEERS,
@@ -14,6 +20,7 @@ import {
   parseFrenchDate,
   parseSaleMetadata,
   scrapeInterencheresSale,
+  scrapeInterencheresSaleApi,
 } from './interencheres.mjs';
 import { createSupabaseStore } from './supabase-store.mjs';
 
@@ -190,6 +197,9 @@ async function runCron() {
     dryRun: envBoolean('IE_DRY_RUN', false),
     rooms: process.env.IE_ROOMS || '',
     maxPages: envInteger('IE_MAX_PAGES_PER_SALE', 60, { min: 1, max: 100 }),
+    apiEnabled: envBoolean('IE_API_ENABLED', true),
+    apiPageSize: envInteger('IE_API_PAGE_SIZE', 200, { min: 20, max: 200 }),
+    apiMaxPages: envInteger('IE_API_MAX_PAGES_PER_SALE', 10, { min: 1, max: 100 }),
     pageDelayMs: envInteger('IE_PAGE_DELAY_MS', 450, { min: 0, max: 10_000 }),
     maxCandidatesPerRoom: envInteger('IE_MAX_CANDIDATES_PER_ROOM', 12, { min: 1, max: 30 }),
     writeConcurrency: envInteger('IE_WRITE_CONCURRENCY', 8, { min: 1, max: 20 }),
@@ -249,14 +259,51 @@ async function runCron() {
       log('ie_sale_not_finished', { runId, sale: sale.metadata });
       continue;
     }
-    const result = await scrapeInterencheresSale({
-      url: sale.url,
-      expectedRoom: sale.metadata.room,
-      fetchHtml,
-      maxPages: config.maxPages,
-      delayMs: config.pageDelayMs,
-      firstResponse: sale.firstResponse,
-    });
+    let result = null;
+    if (config.apiEnabled) {
+      result = await scrapeInterencheresSaleApi({
+        url: sale.url,
+        saleId: sale.metadata.event_id,
+        metadata: sale.metadata,
+        fetchJson,
+        maxPages: config.apiMaxPages,
+        pageSize: config.apiPageSize,
+        delayMs: config.pageDelayMs,
+      });
+      log('ie_sale_api_scraped', {
+        runId,
+        eventId: result.metadata?.event_id,
+        room: result.metadata?.room,
+        lots: result.lots.length,
+        pages: result.pagesSeen,
+        expectedPages: result.expectedPages,
+        total: result.total,
+        complete: result.complete,
+        blocked: result.blocked,
+        error: result.error,
+      });
+    }
+    if (!result?.complete || result.blocked) {
+      if (result) {
+        log('ie_sale_api_fallback', {
+          runId,
+          eventId: sale.metadata.event_id,
+          blocked: result.blocked,
+          error: result.error,
+        });
+      }
+      result = {
+        ...await scrapeInterencheresSale({
+          url: sale.url,
+          expectedRoom: sale.metadata.room,
+          fetchHtml,
+          maxPages: config.maxPages,
+          delayMs: config.pageDelayMs,
+          firstResponse: sale.firstResponse,
+        }),
+        transport: 'html',
+      };
+    }
     log('ie_sale_scraped', {
       runId,
       eventId: result.metadata?.event_id,
@@ -265,6 +312,7 @@ async function runCron() {
       pages: result.pagesSeen,
       expectedPages: result.expectedPages,
       complete: result.complete,
+      transport: result.transport,
       error: result.error,
     });
     if (result.complete && !result.blocked) scraped.push(result);

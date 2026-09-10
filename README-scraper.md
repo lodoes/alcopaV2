@@ -109,7 +109,7 @@ Le `sale_id` contenu dans le JSON Interencheres n est pas le `sale_id` Alcopa et
 
 ### Cron Interencheres
 
-Le fichier `interencheres-cron.mjs` automatise la recuperation du soir. Il lit les lots Alcopa du jour dans Supabase, decouvre les ventes correspondantes sur les pages officielles des maisons ALCOPA, attend leur etat termine, puis parcourt toutes les pages de resultats. Deux ventes de la meme salle et du meme jour sont distinguees par le recouvrement de leurs numeros de lots.
+Le fichier `interencheres-cron.mjs` automatise la recuperation du soir. Il lit les lots Alcopa du jour dans Supabase, decouvre les ventes correspondantes sur les pages officielles des maisons ALCOPA, attend leur etat termine, puis utilise l API de recherche Interencheres avec une pagination `x-range` de 200 lots. Si l API est bloquee ou incomplete, le scraper HTML pagine reprend automatiquement. Deux ventes de la meme salle et du meme jour sont distinguees par le recouvrement de leurs numeros de lots.
 
 La fusion ne cree jamais de ligne: elle utilise un `PATCH` filtre par `id`, `sale_id` et `date_vente` sur des lots deja lus dans Supabase. Seuls `prix_adjudication_eur`, `statut`, `canal`, `url_interencheres`, `lot_interencheres_id` et la remise a zero de `enchere_courante` peuvent etre modifies. Une vente incomplete, ambigue ou bloquee ne produit aucune ecriture.
 
@@ -120,7 +120,7 @@ Creer un troisieme service Railway connecte au meme depot:
 3. Ajouter `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY`.
 4. Conserver Amsterdam et ne pas generer de domaine public.
 5. Pour le premier lancement, definir `IE_DRY_RUN=true`, `IE_FORCE=true` et eventuellement `IE_ROOMS=lyon`.
-6. Verifier les logs `ie_sales_discovered`, `ie_sale_scraped` et `ie_cron_finished`, puis remettre `IE_DRY_RUN=false` et `IE_FORCE=false`.
+6. Verifier les logs `ie_sales_discovered`, `ie_sale_api_scraped`, `ie_sale_scraped` et `ie_cron_finished`, puis remettre `IE_DRY_RUN=false` et `IE_FORCE=false`.
 
 Le planning `30 16,17,18 * * *` couvre le changement ambiant Europe/Paris. Le script refuse de travailler avant 18 h locale; les passages suivants sont idempotents et servent de nouvelles tentatives. Il ne resout pas les CAPTCHA et s arrete explicitement si Cloudflare presente un challenge.
 
@@ -132,6 +132,9 @@ Variables principales:
 | `IE_ROOMS` | vide | Filtre optionnel, ex. `lyon,marseille` |
 | `IE_DRY_RUN` | `false` | Calcule les fusions sans ecrire dans Supabase |
 | `IE_FORCE` | `false` | Recontrole aussi les ventes deja terminales |
+| `IE_API_ENABLED` | `true` | Utilise l API de lots avant le repli HTML |
+| `IE_API_PAGE_SIZE` | `200` | Nombre de lots demandes par appel API |
+| `IE_API_MAX_PAGES_PER_SALE` | `10` | Plafond de pages API par vente |
 | `IE_MAX_PAGES_PER_SALE` | `60` | Plafond de pages par vente IE |
 | `IE_PAGE_DELAY_MS` | `450` | Pause entre pages |
 | `IE_MAX_CANDIDATES_PER_ROOM` | `12` | Plafond de ventes inspectees sur une page de maison |

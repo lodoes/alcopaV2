@@ -6,8 +6,10 @@ import {
   parseAuctioneerLinks,
   parseAuctioneerSales,
   parseFrenchDate,
+  parseInterencheresApiItem,
   parseInterencheresPage,
   scrapeInterencheresSale,
+  scrapeInterencheresSaleApi,
 } from '../interencheres.mjs';
 import { buildUpdates } from '../interencheres-cron.mjs';
 
@@ -90,6 +92,76 @@ test('sale scraper follows every page', async () => {
   assert.equal(result.pagesSeen, 2);
   assert.equal(result.lots.length, 4);
   assert.equal(calls.length, 2);
+});
+
+test('Interencheres API parser extracts sold, unsold and auction channel', () => {
+  const saleUrl = 'https://www.interencheres.com/vehicules/vehicules-utilitaires-et-tourisme-687897';
+  const physical = parseInterencheresApiItem({
+    id: 88695674,
+    meta: { order_number: { primary: 104 } },
+    pricing: { auctioned: { sold: true, price: 8300, type: 'physical', site: null } },
+    states: { suppressed: false },
+    title_translations: { 'fr-FR': 'PEUGEOT - 308 SOCIETE' },
+  }, saleUrl);
+  const live = parseInterencheresApiItem({
+    id: 88695675,
+    meta: { order_number: { primary: 105 } },
+    pricing: { auctioned: { sold: true, price: 9100, type: 'live_bid', site: 'interencheres' } },
+    states: { suppressed: false },
+  }, saleUrl);
+  const unsold = parseInterencheresApiItem({
+    id: 88695676,
+    meta: { order_number: { primary: 106 } },
+    pricing: { auctioned: { sold: false } },
+    states: { suppressed: false },
+  }, saleUrl);
+
+  assert.deepEqual(
+    [physical, live, unsold].map((lot) => [lot.lot_number, lot.statut, lot.prix_adjudication_eur, lot.canal]),
+    [
+      [104, 'adjuge', 8300, 'salle'],
+      [105, 'adjuge', 9100, 'internet'],
+      [106, 'invendu', null, ''],
+    ],
+  );
+  assert.equal(physical.lot_interencheres_id, '88695674');
+  assert.equal(physical.url_interencheres.endsWith('/lot-88695674.html'), true);
+});
+
+test('Interencheres API scraper paginates with x-range', async () => {
+  const calls = [];
+  const items = [
+    { id: 1, meta: { order_number: { primary: 100 } }, pricing: { auctioned: { sold: true, price: 8000, type: 'physical' } } },
+    { id: 2, meta: { order_number: { primary: 101 } }, pricing: { auctioned: { sold: false } } },
+    { id: 3, meta: { order_number: { primary: 102 } }, pricing: { auctioned: { sold: true, price: 9000, type: 'live_bid' } } },
+  ];
+  const result = await scrapeInterencheresSaleApi({
+    url: 'https://www.interencheres.com/vehicules/vente-687897',
+    saleId: 687897,
+    pageSize: 2,
+    maxPages: 5,
+    delayMs: 0,
+    fetchJson: async (url, options) => {
+      calls.push({ url, options });
+      const range = options.headers['x-range'].match(/items=(\d+)-(\d+)/);
+      const start = Number(range[1]);
+      const end = Number(range[2]);
+      return {
+        status: 200,
+        challenge: false,
+        headers: { 'content-range': `${start}-${Math.min(end, 2)}/3` },
+        text: JSON.stringify(items.slice(start, end + 1)),
+      };
+    },
+  });
+
+  assert.equal(result.complete, true);
+  assert.equal(result.pagesSeen, 2);
+  assert.equal(result.expectedPages, 2);
+  assert.equal(result.lots.length, 3);
+  assert.equal(calls[0].options.headers['x-range'], 'items=0-1');
+  assert.equal(calls[1].options.headers['x-range'], 'items=2-3');
+  assert.match(calls[0].url, /filters%5Bsale%5D=687897/);
 });
 
 test('same-room sales are assigned by lot-number overlap', () => {
