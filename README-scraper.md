@@ -107,6 +107,38 @@ Le dashboard local `analytics/alcopa-analytics.html` contient un bouton `Importe
 
 Le `sale_id` contenu dans le JSON Interencheres n est pas le `sale_id` Alcopa et n est donc jamais copie. Les mises a jour Alcopa omettent volontairement les champs appartenant a Interencheres afin qu un cron ulterieur ne supprime pas les prix et statuts deja importes.
 
+### Cron Interencheres
+
+Le fichier `interencheres-cron.mjs` automatise la recuperation du soir. Il lit les lots Alcopa du jour dans Supabase, decouvre les ventes correspondantes sur les pages officielles des maisons ALCOPA, attend leur etat termine, puis parcourt toutes les pages de resultats. Deux ventes de la meme salle et du meme jour sont distinguees par le recouvrement de leurs numeros de lots.
+
+La fusion ne cree jamais de ligne: elle utilise un `PATCH` filtre par `id`, `sale_id` et `date_vente` sur des lots deja lus dans Supabase. Seuls `prix_adjudication_eur`, `statut`, `canal`, `url_interencheres`, `lot_interencheres_id` et la remise a zero de `enchere_courante` peuvent etre modifies. Une vente incomplete, ambigue ou bloquee ne produit aucune ecriture.
+
+Creer un troisieme service Railway connecte au meme depot:
+
+1. Nommer le service `interencheres-cron`.
+2. Definir le chemin de configuration sur `/railway-interencheres-cron.json`.
+3. Ajouter `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY`.
+4. Conserver Amsterdam et ne pas generer de domaine public.
+5. Pour le premier lancement, definir `IE_DRY_RUN=true`, `IE_FORCE=true` et eventuellement `IE_ROOMS=lyon`.
+6. Verifier les logs `ie_sales_discovered`, `ie_sale_scraped` et `ie_cron_finished`, puis remettre `IE_DRY_RUN=false` et `IE_FORCE=false`.
+
+Le planning `30 16,17,18 * * *` couvre le changement ambiant Europe/Paris. Le script refuse de travailler avant 18 h locale; les passages suivants sont idempotents et servent de nouvelles tentatives. Il ne resout pas les CAPTCHA et s arrete explicitement si Cloudflare presente un challenge.
+
+Variables principales:
+
+| Variable | Defaut | Role |
+| --- | --- | --- |
+| `IE_NOT_BEFORE_HOUR` | `18` | Heure locale Paris avant laquelle le cron quitte sans travailler |
+| `IE_ROOMS` | vide | Filtre optionnel, ex. `lyon,marseille` |
+| `IE_DRY_RUN` | `false` | Calcule les fusions sans ecrire dans Supabase |
+| `IE_FORCE` | `false` | Recontrole aussi les ventes deja terminales |
+| `IE_MAX_PAGES_PER_SALE` | `60` | Plafond de pages par vente IE |
+| `IE_PAGE_DELAY_MS` | `450` | Pause entre pages |
+| `IE_MAX_CANDIDATES_PER_ROOM` | `12` | Plafond de ventes inspectees sur une page de maison |
+| `IE_WRITE_CONCURRENCY` | `8` | Nombre maximal de PATCH Supabase simultanes |
+| `IE_TARGET_DATE` | aujourd hui | Date ISO de reprise manuelle; contourne uniquement la barriere horaire |
+| `IE_RUN_ANYTIME` | `false` | Autorise un lancement manuel avant 18 h |
+
 ## Transport navigateur sur Railway
 
 Le `Dockerfile` installe Chromium et configure automatiquement `SCRAPER_TRANSPORT=browser`. Railway utilise ce fichier grace a la section `build` de `railway.json`. Une seule replique est placee en EU West (Amsterdam) afin d'heberger le service au plus pres du site francais.

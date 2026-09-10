@@ -88,3 +88,42 @@ test('catalog upserts group sparse rows and never send a missing price as null',
     );
   }
 });
+
+test('Interencheres storage reads both date formats and patches existing rows only', async () => {
+  const calls = [];
+  const store = createSupabaseStore({
+    url: 'https://example.supabase.co',
+    key: 'test-key',
+    fetch: async (url, options) => {
+      calls.push({ url: String(url), options });
+      if (options.method === 'PATCH') return new Response(null, { status: 204 });
+      return new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } });
+    },
+  });
+
+  await store.selectLotsByDate('2026-09-10');
+  const selectUrl = new URL(calls[0].url);
+  assert.equal(
+    selectUrl.searchParams.get('or'),
+    '(date_vente.eq.2026-09-10,date_vente.eq.10/09/2026)',
+  );
+
+  await store.updateInterencheresLots([{
+    id: 'lyon-12371-lot-112',
+    sale_id: '12371',
+    date_vente: '10/09/2026',
+    statut: 'adjuge',
+    prix_adjudication_eur: 11_000,
+    description: 'must not be updated',
+  }]);
+  const patchCall = calls[1];
+  const patchUrl = new URL(patchCall.url);
+  assert.equal(patchCall.options.method, 'PATCH');
+  assert.equal(patchUrl.searchParams.get('id'), 'eq.lyon-12371-lot-112');
+  assert.equal(patchUrl.searchParams.get('sale_id'), 'eq.12371');
+  assert.equal(patchUrl.searchParams.get('date_vente'), 'eq.10/09/2026');
+  assert.deepEqual(JSON.parse(patchCall.options.body), {
+    prix_adjudication_eur: 11_000,
+    statut: 'adjuge',
+  });
+});

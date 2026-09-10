@@ -75,6 +75,24 @@ const INTERENCHERES_RESULT_COLUMNS = new Set([
   'lot_interencheres_id',
 ]);
 
+const INTERENCHERES_SELECT_COLUMNS = [
+  'id',
+  'merge_key',
+  'lot_number',
+  'sale_id',
+  'salle',
+  'date_vente',
+  'marque',
+  'modele',
+  'description',
+  'enchere_courante',
+  'prix_adjudication_eur',
+  'statut',
+  'canal',
+  'url_interencheres',
+  'lot_interencheres_id',
+];
+
 const ALCOPA_CATALOG_COLUMNS = BASE_LOT_COLUMNS.filter(
   (column) => !INTERENCHERES_RESULT_COLUMNS.has(column),
 );
@@ -234,9 +252,61 @@ function createSupabaseStore(options = {}) {
     });
   }
 
+  async function selectLotsByDate(date) {
+    const rows = [];
+    const isoMatch = String(date).match(/^(20\d{2})-(\d{2})-(\d{2})$/);
+    const dateFilter = isoMatch
+      ? `(date_vente.eq.${date},date_vente.eq.${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]})`
+      : `(date_vente.eq.${date})`;
+    const pageSize = 1_000;
+    for (let offset = 0; ; offset += pageSize) {
+      const page = await request(lotsTable, {
+        query: {
+          select: INTERENCHERES_SELECT_COLUMNS.join(','),
+          or: dateFilter,
+          order: 'id.asc',
+          limit: pageSize,
+          offset,
+        },
+      });
+      rows.push(...page);
+      if (page.length < pageSize) break;
+    }
+    return rows;
+  }
+
+  async function updateInterencheresLots(updates, { concurrency = 8 } = {}) {
+    let saved = 0;
+    const parallel = Math.max(1, Math.min(20, Number(concurrency) || 8));
+    for (const batch of chunks(updates, parallel)) {
+      const results = await Promise.all(batch.map(async (update) => {
+        const body = {};
+        for (const column of INTERENCHERES_RESULT_COLUMNS) {
+          if (Object.hasOwn(update, column)) body[column] = update[column];
+        }
+        if (!update.id || !update.sale_id || !update.date_vente || !Object.keys(body).length) return 0;
+        await request(lotsTable, {
+          method: 'PATCH',
+          query: {
+            id: `eq.${update.id}`,
+            sale_id: `eq.${update.sale_id}`,
+            date_vente: `eq.${update.date_vente}`,
+          },
+          prefer: 'return=minimal',
+          body,
+        });
+        return 1;
+      }));
+      saved += results.reduce((sum, value) => sum + value, 0);
+    }
+    return saved;
+  }
+
   return {
+    selectLotsByDate,
     selectPendingDetails,
     selectPendingOcr,
+    updateInterencheresLots,
     upsertLots,
     upsertSales,
   };
@@ -247,6 +317,7 @@ export {
   BASE_LOT_COLUMNS,
   DETAIL_LOT_COLUMNS,
   INTERENCHERES_RESULT_COLUMNS,
+  INTERENCHERES_SELECT_COLUMNS,
   createSupabaseStore,
   groupRowsByColumns,
   serializeLot,

@@ -25,6 +25,8 @@ COPY --chown=node:node \
   cron-all-sales.mjs \
   ct-analysis.mjs \
   homepage-sales.mjs \
+  interencheres-cron.mjs \
+  interencheres.mjs \
   scrape-alcopa.mjs \
   server.mjs \
   supabase-store.mjs \
