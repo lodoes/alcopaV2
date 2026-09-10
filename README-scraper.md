@@ -27,8 +27,39 @@ node .\scrape-alcopa.mjs --html .\alcopa-sample-lyon-12371.html --out sample.jso
 | --- | --- |
 | `/health` | Version deployee et liste des endpoints |
 | `/scrape?url=...&maxPages=30` | Scrape JSON |
+| `/scrape?url=...&details=1&detailLimit=3` | Liste + informations des fiches vehicule |
+| `/scrape?url=...&details=1&ocr=1&ocrLimit=1` | Liste + fiches + analyse des CT |
+| `/vehicle?url=...&ocr=1` | Enrichit et analyse une seule fiche vehicule |
 | `/scrape?format=csv&url=...` | Meme scrape en CSV |
+| `/probe?url=...` | Teste vraiment Alcopa; renvoie HTTP 502 en cas de blocage |
 | `/debug?url=...` | Diagnostic: IP de sortie de l'hebergeur + statut brut renvoye par Alcopa |
+
+## Fiches vehicule et controles techniques
+
+Test rapide sur trois fiches, dont un seul CT analyse:
+
+```text
+/scrape?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=1&details=1&detailLimit=3&ocr=1&ocrLimit=1
+```
+
+Pour une seule voiture:
+
+```text
+/vehicle?url=https://www.alcopa-auction.fr/voiture-occasion/peugeot/308-societe-bluehdi-130ch-s-s-bvm6-active-pack-1109200&ocr=1
+```
+
+Le resultat reprend les champs du projet local: `url_ct`, `commentaires_brut`, `informations_brut`, `notes_annonce`, `ct_verdict`, les defauts majeurs/mineurs/critiques groupes par categorie et `ct_texte_brut`. Il ajoute les caracteristiques de la fiche (`finition`, immatriculation, VIN, couleur, TVA, carrosserie, CO2, cylindree) et les defauts esthetiques avec leurs photos.
+
+Le moteur essaie d'abord `pdftotext`. Il lance `pdftoppm` puis Tesseract en francais uniquement pour un PDF scanne. Le `Dockerfile` installe ces trois outils pour Railway.
+
+Pour enrichir toute une vente en ligne de commande:
+
+```powershell
+$env:SCRAPER_TRANSPORT="browser"
+node .\scrape-alcopa.mjs --url "https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371" --out alcopa-enrichi.json --csv alcopa-enrichi.csv --max-pages 30 --details --ocr --detail-limit 0 --ocr-limit 0 --detail-delay-ms 500
+```
+
+Une vente complete avec OCR peut durer longtemps. Depuis une interface web, appeler `/vehicle` sequentiellement est plus robuste qu'une seule grosse requete HTTP. Pour stocker les nouveaux champs dans Supabase, executer une fois `supabase_alcopa_detail_ct_migration.sql` dans l'editeur SQL.
 
 ## Transport navigateur sur Railway
 
@@ -40,7 +71,7 @@ Apres le deploiement, `/health` doit afficher:
 
 ```json
 {
-  "version": "2026-09-10-browser-transport-v1",
+  "version": "2026-09-10-details-ct-ocr-v1",
   "transport": "browser"
 }
 ```
@@ -57,6 +88,12 @@ Apres le deploiement, `/health` doit afficher:
 | `SCRAPER_MAX_ATTEMPTS` | `4` | Nombre de tentatives par page |
 | `DEFAULT_MAX_PAGES` / `MAX_ALLOWED_PAGES` | `30` / `40` | Pagination par defaut et plafond |
 | `DEFAULT_DELAY_MS` | `350` | Pause entre pages |
+| `DEFAULT_DETAIL_LIMIT` / `MAX_DETAIL_LIMIT` | `10` / `500` | Nombre de fiches traitees par appel API |
+| `DEFAULT_OCR_LIMIT` / `MAX_OCR_LIMIT` | `3` / `500` | Nombre de CT analyses par appel API |
+| `DEFAULT_DETAIL_DELAY_MS` | `500` | Pause entre les fiches |
+| `MAX_BINARY_BYTES` | `30000000` | Taille maximale acceptee pour un CT |
+| `PDFTOTEXT_BIN`, `PDFTOPPM_BIN`, `TESSERACT_BIN` | commandes du PATH | Executables PDF/OCR |
+| `CT_MAX_PAGES` / `CT_OCR_DPI` | `4` / `200` | Limites de lecture du CT |
 
 ### HTTP 405 en production
 

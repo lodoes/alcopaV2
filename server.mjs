@@ -4,6 +4,7 @@ import {
   DEFAULT_URL,
   closeBrowser,
   describeBlock,
+  enrichVehicles,
   fetchHtml,
   getTransportName,
   scrape,
@@ -12,10 +13,15 @@ import {
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
-const APP_VERSION = '2026-09-10-browser-transport-v1';
+const APP_VERSION = '2026-09-10-details-ct-ocr-v1';
 const DEFAULT_MAX_PAGES = Number(process.env.DEFAULT_MAX_PAGES || 30);
 const MAX_ALLOWED_PAGES = Number(process.env.MAX_ALLOWED_PAGES || 40);
 const DEFAULT_DELAY_MS = Number(process.env.DEFAULT_DELAY_MS || 350);
+const DEFAULT_DETAIL_LIMIT = Number(process.env.DEFAULT_DETAIL_LIMIT || 10);
+const MAX_DETAIL_LIMIT = Number(process.env.MAX_DETAIL_LIMIT || 500);
+const DEFAULT_OCR_LIMIT = Number(process.env.DEFAULT_OCR_LIMIT || 3);
+const MAX_OCR_LIMIT = Number(process.env.MAX_OCR_LIMIT || 500);
+const DEFAULT_DETAIL_DELAY_MS = Number(process.env.DEFAULT_DETAIL_DELAY_MS || 500);
 
 function send(res, status, body, headers = {}) {
   const isBuffer = Buffer.isBuffer(body);
@@ -32,6 +38,11 @@ function send(res, status, body, headers = {}) {
 function parsePositiveInt(value, fallback) {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? Math.floor(number) : fallback;
+}
+
+function parseBoolean(value, fallback = false) {
+  if (value == null || value === '') return fallback;
+  return /^(1|true|yes|oui|on)$/i.test(String(value));
 }
 
 function isAllowedUrl(value) {
@@ -65,6 +76,20 @@ async function handleScrape(req, res, url) {
   );
   const delayMs = parsePositiveInt(url.searchParams.get('delayMs') || url.searchParams.get('delay-ms'), DEFAULT_DELAY_MS);
   const format = (url.searchParams.get('format') || 'json').toLowerCase();
+  const ocr = parseBoolean(url.searchParams.get('ocr'));
+  const details = ocr || parseBoolean(url.searchParams.get('details'));
+  const detailLimit = Math.min(
+    parsePositiveInt(url.searchParams.get('detailLimit') || url.searchParams.get('detail-limit'), DEFAULT_DETAIL_LIMIT),
+    MAX_DETAIL_LIMIT,
+  );
+  const ocrLimit = Math.min(
+    parsePositiveInt(url.searchParams.get('ocrLimit') || url.searchParams.get('ocr-limit'), DEFAULT_OCR_LIMIT),
+    MAX_OCR_LIMIT,
+  );
+  const detailDelayMs = parsePositiveInt(
+    url.searchParams.get('detailDelayMs') || url.searchParams.get('detail-delay-ms'),
+    DEFAULT_DETAIL_DELAY_MS,
+  );
 
   const startedAt = Date.now();
   const result = await scrape({
@@ -75,6 +100,11 @@ async function handleScrape(req, res, url) {
     csv: '',
     html: '',
     verbose: false,
+    details,
+    ocr,
+    detailLimit,
+    ocrLimit,
+    detailDelayMs,
   });
 
   if (format === 'csv') {
@@ -95,7 +125,36 @@ async function handleScrape(req, res, url) {
     durationMs: Date.now() - startedAt,
     error: result.blocked ? `Alcopa a refuse la requete (HTTP ${result.blockReason?.status ?? '?'}) depuis cet hebergeur` : null,
     blockReason: result.blockReason,
+    enrichment: result.enrichment,
     data: result.lots,
+  });
+}
+
+async function handleVehicle(res, url) {
+  const targetUrl = normalizeTargetUrl(url.searchParams.get('url') || '');
+  if (!isAllowedUrl(targetUrl) || !/\/(?:voiture|utilitaire)-occasion\//i.test(new URL(targetUrl).pathname)) {
+    send(res, 400, { ok: false, error: 'URL de fiche vehicule Alcopa invalide.' });
+    return;
+  }
+
+  const ocr = parseBoolean(url.searchParams.get('ocr'));
+  const startedAt = Date.now();
+  const result = await enrichVehicles([{ id: 'vehicle', url_alcopa: targetUrl }], {
+    detailLimit: 1,
+    ocr,
+    ocrLimit: 1,
+    detailDelayMs: 0,
+    referer: `${BASE_URL}/`,
+  });
+  const vehicle = result.lots[0];
+  const ok = !result.stats.blocked && !vehicle.detail_error && !vehicle.ct_error;
+  const status = result.stats.blocked ? 502 : ok ? 200 : 500;
+  send(res, status, {
+    ok,
+    transport: getTransportName(),
+    durationMs: Date.now() - startedAt,
+    enrichment: result.stats,
+    data: vehicle,
   });
 }
 
@@ -133,6 +192,29 @@ async function handleDebug(res, url) {
   });
 }
 
+async function handleProbe(res, url) {
+  const targetUrl = normalizeTargetUrl(url.searchParams.get('url') || DEFAULT_URL);
+  if (!isAllowedUrl(targetUrl)) {
+    send(res, 400, { ok: false, error: 'URL invalide.' });
+    return;
+  }
+  const startedAt = Date.now();
+  const response = await fetchHtml(targetUrl).catch((error) => ({
+    status: 0,
+    finalUrl: targetUrl,
+    headers: {},
+    html: '',
+    networkError: error.message,
+  }));
+  const ok = !response.challenge && response.status >= 200 && response.status < 300;
+  send(res, ok ? 200 : 502, {
+    ok,
+    transport: getTransportName(),
+    durationMs: Date.now() - startedAt,
+    probe: describeBlock(targetUrl, response),
+  });
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
@@ -151,7 +233,10 @@ const server = http.createServer(async (req, res) => {
         railwayRegion: process.env.RAILWAY_REPLICA_REGION || null,
         endpoints: {
           scrape: '/scrape?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=30',
+          enriched: '/scrape?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=1&details=1&detailLimit=3&ocr=1&ocrLimit=1',
+          vehicle: '/vehicle?url=https://www.alcopa-auction.fr/voiture-occasion/...&ocr=1',
           csv: '/scrape?format=csv&url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=30',
+          probe: '/probe?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371',
           debug: '/debug?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371',
         },
       });
@@ -163,8 +248,18 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === 'GET' && url.pathname === '/vehicle') {
+      await handleVehicle(res, url);
+      return;
+    }
+
     if (req.method === 'GET' && url.pathname === '/debug') {
       await handleDebug(res, url);
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/probe') {
+      await handleProbe(res, url);
       return;
     }
 

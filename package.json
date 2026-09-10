@@ -8,9 +8,11 @@
   },
   "scripts": {
     "start": "node server.mjs",
+    "test": "node --test",
     "scrape:lyon": "node scrape-alcopa.mjs --url \"https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371\" --out alcopa-lyon-12371.json --csv alcopa-lyon-12371.csv --max-pages 30"
   },
   "dependencies": {
+    "cheerio": "^1.1.2",
     "playwright-core": "^1.63.0"
   }
 }

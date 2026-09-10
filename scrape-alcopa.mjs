@@ -2,6 +2,8 @@
 
 import { fileURLToPath } from 'node:url';
 
+import { enrichLots as enrichLotRecords } from './vehicle-details.mjs';
+
 const DEFAULT_URL = 'https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371';
 const BASE_URL = 'https://www.alcopa-auction.fr';
 const CSV_HEADERS = [
@@ -31,6 +33,34 @@ const CSV_HEADERS = [
   'lot_interencheres_id',
   'sale_id',
   'source',
+  'finition',
+  'immatriculation',
+  'date_mise_circulation',
+  'numero_serie',
+  'couleur',
+  'tva_recuperable',
+  'type_vehicule',
+  'carrosserie',
+  'co2_g_km',
+  'cylindree_cm3',
+  'url_ct',
+  'commentaires_brut',
+  'informations_brut',
+  'notes_annonce',
+  'defauts_esthetiques',
+  'annonce_fetched_at',
+  'detail_error',
+  'ct_verdict',
+  'ct_defauts_maj',
+  'ct_defauts_min',
+  'ct_critiques',
+  'ct_nb_codes',
+  'ct_defauts_maj_groupes',
+  'ct_defauts_min_groupes',
+  'ct_texte_brut',
+  'ct_ocr_done_at',
+  'ct_source',
+  'ct_error',
 ];
 
 function parseArgs(argv) {
@@ -42,6 +72,11 @@ function parseArgs(argv) {
     delayMs: 350,
     html: '',
     verbose: false,
+    details: false,
+    ocr: false,
+    detailLimit: 0,
+    ocrLimit: 0,
+    detailDelayMs: 500,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -53,6 +88,14 @@ function parseArgs(argv) {
     else if (arg === '--delay-ms') args.delayMs = Number(argv[++i]);
     else if (arg === '--html') args.html = argv[++i];
     else if (arg === '--verbose') args.verbose = true;
+    else if (arg === '--details') args.details = true;
+    else if (arg === '--ocr') {
+      args.details = true;
+      args.ocr = true;
+    }
+    else if (arg === '--detail-limit') args.detailLimit = Number(argv[++i]);
+    else if (arg === '--ocr-limit') args.ocrLimit = Number(argv[++i]);
+    else if (arg === '--detail-delay-ms') args.detailDelayMs = Number(argv[++i]);
     else if (arg === '--help' || arg === '-h') {
       printHelp();
       process.exit(0);
@@ -76,6 +119,11 @@ Options:
   --max-pages N     Limite de pagination, defaut 30
   --delay-ms N      Pause entre pages, defaut 350 ms
   --html FILE       Parse un HTML local sans requete reseau
+  --details         Visite chaque fiche vehicule et extrait les informations + URL CT
+  --ocr             Telecharge et analyse les CT (implique --details)
+  --detail-limit N  Limite de fiches a enrichir, 0 = toutes
+  --ocr-limit N     Limite de CT a analyser, 0 = tous les CT trouves
+  --detail-delay-ms N  Pause entre fiches, defaut 500 ms
   --verbose         Affiche plus de details`);
 }
 
@@ -104,6 +152,7 @@ const MAX_ATTEMPTS = Math.max(1, Number(process.env.SCRAPER_MAX_ATTEMPTS || 4));
 const SCRAPER_TRANSPORT = (process.env.SCRAPER_TRANSPORT || 'direct').toLowerCase();
 const BROWSER_TIMEOUT_MS = Math.max(5_000, Number(process.env.BROWSER_TIMEOUT_MS || 45_000));
 const BROWSER_SETTLE_MS = Math.max(0, Number(process.env.BROWSER_SETTLE_MS || 750));
+const MAX_BINARY_BYTES = Math.max(1_000_000, Number(process.env.MAX_BINARY_BYTES || 30_000_000));
 const RETRY_STATUSES = new Set([403, 405, 408, 425, 429, 500, 502, 503, 504]);
 
 const session = { cookies: new Map(), warm: false };
@@ -165,6 +214,34 @@ async function rawFetch(url, referer) {
     headers: Object.fromEntries(res.headers.entries()),
     html,
     challenge: isChallenge(html),
+  };
+}
+
+async function rawFetchBinary(url, referer) {
+  const res = await fetch(url, {
+    headers: {
+      ...browserHeaders({ referer }),
+      accept: 'application/pdf,application/octet-stream;q=0.9,*/*;q=0.8',
+    },
+    redirect: 'follow',
+  });
+  storeCookies(res);
+  const declaredLength = Number(res.headers.get('content-length') || 0);
+  if (declaredLength > MAX_BINARY_BYTES) {
+    throw new Error(`Document trop volumineux (${declaredLength} octets)`);
+  }
+  const buffer = Buffer.from(await res.arrayBuffer());
+  if (buffer.length > MAX_BINARY_BYTES) {
+    throw new Error(`Document trop volumineux (${buffer.length} octets)`);
+  }
+  const contentType = res.headers.get('content-type') || '';
+  const preview = /html|text/i.test(contentType) ? buffer.subarray(0, 100_000).toString('utf8') : '';
+  return {
+    status: res.status,
+    finalUrl: res.url,
+    headers: Object.fromEntries(res.headers.entries()),
+    buffer,
+    challenge: isChallenge(preview),
   };
 }
 
@@ -236,12 +313,52 @@ async function browserFetch(url, referer) {
   }
 }
 
+async function browserFetchBinary(url, referer) {
+  const context = await getBrowserContext();
+  const response = await context.request.get(url, {
+    failOnStatusCode: false,
+    headers: {
+      accept: 'application/pdf,application/octet-stream;q=0.9,*/*;q=0.8',
+      ...(referer ? { referer } : {}),
+    },
+    timeout: BROWSER_TIMEOUT_MS,
+  });
+  const headers = response.headers();
+  const declaredLength = Number(headers['content-length'] || 0);
+  if (declaredLength > MAX_BINARY_BYTES) {
+    throw new Error(`Document trop volumineux (${declaredLength} octets)`);
+  }
+  const buffer = await response.body();
+  if (buffer.length > MAX_BINARY_BYTES) {
+    throw new Error(`Document trop volumineux (${buffer.length} octets)`);
+  }
+  const preview = /html|text/i.test(headers['content-type'] || '')
+    ? buffer.subarray(0, 100_000).toString('utf8')
+    : '';
+  return {
+    status: response.status(),
+    finalUrl: response.url(),
+    headers,
+    buffer,
+    challenge: isChallenge(preview),
+    transport: 'browser',
+  };
+}
+
 function transportFetch(url, referer) {
   if (SCRAPER_TRANSPORT === 'browser') return browserFetch(url, referer);
   if (SCRAPER_TRANSPORT !== 'direct') {
     throw new Error(`SCRAPER_TRANSPORT invalide: ${SCRAPER_TRANSPORT}`);
   }
   return rawFetch(url, referer);
+}
+
+function transportFetchBinary(url, referer) {
+  if (SCRAPER_TRANSPORT === 'browser') return browserFetchBinary(url, referer);
+  if (SCRAPER_TRANSPORT !== 'direct') {
+    throw new Error(`SCRAPER_TRANSPORT invalide: ${SCRAPER_TRANSPORT}`);
+  }
+  return rawFetchBinary(url, referer);
 }
 
 async function clearTransportSession() {
@@ -284,6 +401,30 @@ async function fetchHtml(url, { referer = '' } = {}) {
       console.error(`[retry ${attempt}/${MAX_ATTEMPTS}] ${url} -> statut ${last.status}${last.challenge ? ' (challenge)' : ''}`);
       await sleep(500 * (2 ** (attempt - 1)));
     }
+  }
+  return { ...last, attempts: MAX_ATTEMPTS };
+}
+
+async function fetchBinary(url, { referer = '' } = {}) {
+  let last = null;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    await warmUpSession(attempt > 1);
+    try {
+      last = await transportFetchBinary(url, referer || `${BASE_URL}/`);
+    } catch (error) {
+      last = {
+        status: 0,
+        finalUrl: url,
+        headers: {},
+        buffer: Buffer.alloc(0),
+        challenge: false,
+        networkError: error.message,
+      };
+    }
+    if (last.challenge) return { ...last, attempts: attempt };
+    const retryable = last.status === 0 || RETRY_STATUSES.has(last.status);
+    if (!retryable) return { ...last, attempts: attempt };
+    if (attempt < MAX_ATTEMPTS) await sleep(500 * (2 ** (attempt - 1)));
   }
   return { ...last, attempts: MAX_ATTEMPTS };
 }
@@ -523,12 +664,25 @@ function dedupeLots(lots) {
 
 function toCsv(lots) {
   const escape = (value) => {
-    const stringValue = value == null ? '' : String(value);
+    const stringValue = value == null
+      ? ''
+      : typeof value === 'object'
+        ? JSON.stringify(value)
+        : String(value);
     const escaped = stringValue.replace(/"/g, '""');
     return /[",\n\r]/.test(escaped) ? `"${escaped}"` : escaped;
   };
   const rows = lots.map((lot) => CSV_HEADERS.map((header) => escape(lot[header])).join(','));
   return `\uFEFF${CSV_HEADERS.join(',')}\n${rows.join('\n')}\n`;
+}
+
+async function enrichVehicles(lots, options = {}) {
+  return enrichLotRecords(lots, {
+    fetchHtml,
+    fetchBinary,
+    delayMs: options.detailDelayMs ?? options.delayMs ?? 500,
+    ...options,
+  });
 }
 
 async function scrape(args) {
@@ -584,12 +738,34 @@ async function scrape(args) {
     if (page < expectedPages) await sleep(args.delayMs);
   }
 
+  let lots = dedupeLots(allLots);
+  let enrichment = null;
+  if (!blocked && args.details) {
+    const enriched = await enrichVehicles(lots, {
+      detailLimit: args.detailLimit,
+      ocr: args.ocr,
+      ocrLimit: args.ocrLimit,
+      detailDelayMs: args.detailDelayMs,
+      referer: args.url,
+      onProgress: ({ current, total, lot, ctAnalyzed }) => {
+        console.error(`[detail ${current}/${total}] lot ${lot.lot_number || lot.alcopa_id || '?'}${lot.url_ct ? ' CT' : ''}${ctAnalyzed ? ' analyse' : ''}`);
+      },
+    });
+    lots = enriched.lots;
+    enrichment = enriched.stats;
+    if (enrichment.blocked) {
+      blocked = true;
+      blockReason = enrichment.blockReason;
+    }
+  }
+
   return {
-    lots: dedupeLots(allLots),
+    lots,
     pagesSeen: pagesFetched,
     expectedPages,
     blocked,
     blockReason,
+    enrichment,
   };
 }
 
@@ -600,6 +776,8 @@ export {
   scrape,
   toCsv,
   fetchHtml,
+  fetchBinary,
+  enrichVehicles,
   describeBlock,
   getTransportName,
   closeBrowser,
@@ -622,6 +800,7 @@ async function main() {
     csv: args.csv || null,
     pages: result.pagesSeen,
     expectedPages: result.expectedPages,
+    enrichment: result.enrichment || null,
     blockReason: result.blockReason,
   }, null, 2));
 

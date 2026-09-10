@@ -9,13 +9,19 @@ ENV BROWSER_SETTLE_MS=750
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends chromium ca-certificates fonts-liberation \
+    && apt-get install -y --no-install-recommends \
+      ca-certificates \
+      chromium \
+      fonts-liberation \
+      poppler-utils \
+      tesseract-ocr \
+      tesseract-ocr-fra \
     && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-COPY --chown=node:node scrape-alcopa.mjs server.mjs ./
+COPY --chown=node:node ct-analysis.mjs vehicle-details.mjs scrape-alcopa.mjs server.mjs ./
 
 USER node
 
