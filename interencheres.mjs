@@ -59,7 +59,7 @@ function isoDate(year, month, day) {
 
 function parseFrenchDate(value, fallbackYear = new Date().getUTCFullYear()) {
   const text = normalizeText(value);
-  const isoMatch = text.match(/\b(20\d{2})-(\d{2})-(\d{2})\b/);
+  const isoMatch = text.match(/\b(20\d{2})-(\d{2})-(\d{2})(?=\D|$)/);
   if (isoMatch) return isoDate(Number(isoMatch[1]), Number(isoMatch[2]), Number(isoMatch[3]));
 
   const numericMatch = text.match(/\b(\d{1,2})\/(\d{1,2})\/(20\d{2})\b/);
@@ -92,6 +92,133 @@ function interencheresApiItemsUrl(saleId) {
   const url = new URL(`${IE_SEARCH_URL}/ie4_items`);
   url.searchParams.set('filters[sale]', String(saleId));
   return url.href;
+}
+
+function interencheresApiSalesUrl(targetDate, auctioneerId) {
+  const url = new URL(`${IE_SEARCH_URL}/ie4_sales`);
+  url.searchParams.set('filters[datetime_range]', `${targetDate},${targetDate}`);
+  if (auctioneerId) url.searchParams.set('filters[organization]', String(auctioneerId));
+  return url.href;
+}
+
+function saleSlug(value = '') {
+  return normalizeText(value)
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    || 'vente';
+}
+
+function interencheresApiSaleUrl(sale) {
+  const eventId = Number(sale?.id);
+  if (!Number.isFinite(eventId)) return '';
+  const section = sale?.category?.field === 'vh' ? 'vehicules' : 'biens-equipement';
+  const title = sale?.name_translations?.['fr-FR']
+    || sale?.name_translations?.['en-US']
+    || sale?.name
+    || 'vente';
+  return `${IE_BASE_URL}/${section}/${saleSlug(title)}-${eventId}/`;
+}
+
+function parseInterencheresApiSale(sale, auctioneer = {}) {
+  const eventId = Number(sale?.id);
+  const organizationId = Number(sale?.organization?.id);
+  const expectedOrganizationId = Number(auctioneer.auctioneer_id);
+  if (!Number.isFinite(eventId)) return null;
+  if (Number.isFinite(expectedOrganizationId) && organizationId !== expectedOrganizationId) return null;
+  if (sale?.states?.canceled || sale?.states?.deleted || sale?.states?.hidden) return null;
+  if (sale?.sites?.interencheres?.is_present === false) return null;
+
+  const date = parseFrenchDate(sale?.start_at || sale?.datetime || '');
+  const room = normalizeRoom(auctioneer.room);
+  const organizationName = cleanText(
+    sale?.organization?.names?.voluntary
+    || sale?.organization?.names?.judicial
+    || sale?.organization?.address?.name
+    || '',
+  );
+  const completed = sale?.has_ended === true
+    || sale?.live?.has_ended === true
+    || sale?.meta?.live?.has_ended === true;
+
+  return {
+    event_id: String(eventId),
+    url: interencheresApiSaleUrl(sale),
+    title: cleanText(
+      sale?.name_translations?.['fr-FR']
+      || sale?.name_translations?.['en-US']
+      || sale?.name
+      || '',
+    ),
+    date,
+    room,
+    room_confirmed: Number.isFinite(expectedOrganizationId)
+      ? organizationId === expectedOrganizationId
+      : normalizeRoom(organizationName).includes(room),
+    completed,
+    lots_announced: Number.isFinite(Number(sale?.items_count)) ? Number(sale.items_count) : null,
+    organization_id: Number.isFinite(organizationId) ? String(organizationId) : null,
+  };
+}
+
+async function discoverInterencheresSalesApi(options) {
+  const {
+    auctioneer,
+    targetDate,
+    fetchJson,
+    maxSales = 12,
+  } = options;
+  const apiUrl = interencheresApiSalesUrl(targetDate, auctioneer.auctioneer_id);
+  const response = await fetchJson(apiUrl, {
+    referer: auctioneer.url || `${IE_BASE_URL}/`,
+    headers: {
+      origin: IE_BASE_URL,
+      'x-range': 'sales=0-199',
+      'x-requested-with': 'XMLHttpRequest',
+    },
+  });
+  if (response.challenge || response.status < 200 || response.status >= 400) {
+    return {
+      apiUrl,
+      sales: [],
+      received: 0,
+      blocked: Boolean(response.challenge),
+      complete: false,
+      error: `API ventes Interencheres HTTP ${response.status || 0}${response.challenge ? ' (challenge anti-bot)' : ''}`,
+      response,
+    };
+  }
+
+  let payload;
+  try {
+    payload = JSON.parse(response.text);
+    if (!Array.isArray(payload)) throw new Error('Reponse API ventes Interencheres invalide');
+  } catch (error) {
+    return {
+      apiUrl,
+      sales: [],
+      received: 0,
+      blocked: false,
+      complete: false,
+      error: error.message,
+      response,
+    };
+  }
+
+  const sales = payload
+    .map((sale) => parseInterencheresApiSale(sale, auctioneer))
+    .filter((sale) => sale?.url && sale.date === targetDate && sale.room_confirmed)
+    .slice(0, maxSales)
+    .map((metadata) => ({ url: metadata.url, metadata, firstResponse: null }));
+  return {
+    apiUrl,
+    sales,
+    received: payload.length,
+    total: contentRangeTotal(response.headers),
+    blocked: false,
+    complete: true,
+    error: null,
+    response,
+  };
 }
 
 function interencheresItemUrl(saleUrl, itemId) {
@@ -570,7 +697,9 @@ export {
   KNOWN_ALCOPA_AUCTIONEERS,
   cleanText,
   contentRangeTotal,
+  discoverInterencheresSalesApi,
   interencheresApiItemsUrl,
+  interencheresApiSalesUrl,
   matchInterencheresSales,
   normalizeRoom,
   parseAuctioneerLinks,
@@ -578,6 +707,7 @@ export {
   parseFrenchDate,
   parseInterencheresApiItem,
   parseInterencheresApiPage,
+  parseInterencheresApiSale,
   parseInterencheresPage,
   parseSaleMetadata,
   scrapeInterencheresSale,

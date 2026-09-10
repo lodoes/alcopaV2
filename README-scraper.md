@@ -110,7 +110,7 @@ Le `sale_id` contenu dans le JSON Interencheres n est pas le `sale_id` Alcopa et
 
 ### Cron Interencheres
 
-Le fichier `interencheres-cron.mjs` automatise la recuperation du soir. Il lit les lots Alcopa du jour dans Supabase, decouvre les ventes correspondantes sur les pages officielles des maisons ALCOPA, attend leur etat termine, puis utilise l API de recherche Interencheres avec une pagination `x-range` de 200 lots. Si l API est bloquee ou incomplete, le scraper HTML pagine reprend automatiquement. Deux ventes de la meme salle et du meme jour sont distinguees par le recouvrement de leurs numeros de lots.
+Le fichier `interencheres-cron.mjs` automatise la recuperation du soir. Il lit les lots Alcopa du jour dans Supabase, decouvre les ventes ALCOPA avec l API `ie4_sales`, verifie leur etat termine, puis recupere les resultats avec l API `ie4_items` et une pagination `x-range` de 200 lots. La decouverte ne charge donc pas les pages HTML des maisons, souvent protegees par Cloudflare. Deux ventes de la meme salle et du meme jour sont distinguees par le recouvrement de leurs numeros de lots.
 
 La fusion ne cree jamais de ligne: elle utilise un `PATCH` filtre par `id`, `sale_id` et `date_vente` sur des lots deja lus dans Supabase. Seuls `prix_adjudication_eur`, `statut`, `canal`, `url_interencheres`, `lot_interencheres_id` et la remise a zero de `enchere_courante` peuvent etre modifies. Une vente incomplete, ambigue ou bloquee ne produit aucune ecriture.
 
@@ -119,7 +119,7 @@ Le meme service `alcopa-cron` et le meme fichier `/railway-cron.json` lancent au
 Premier test manuel recommande:
 
 1. Definir `COMBINED_CRON_JOB=interencheres`, `IE_DRY_RUN=true`, `IE_FORCE=true` et eventuellement `IE_ROOMS=lyon`.
-2. Lancer manuellement le service et verifier `combined_cron_dispatch`, `ie_sales_discovered`, `ie_sale_api_scraped`, `ie_sale_scraped`, `ie_cron_finished` et `combined_cron_finished`.
+2. Lancer manuellement le service et verifier `combined_cron_dispatch`, `ie_sales_api_discovery`, `ie_sales_discovered`, `ie_sale_api_scraped`, `ie_sale_scraped`, `ie_cron_finished` et `combined_cron_finished`.
 3. Remettre `COMBINED_CRON_JOB=auto`. Apres validation, remettre aussi `IE_DRY_RUN=false` et `IE_FORCE=false`.
 
 Le planning `15 2,16,17,18 * * *` couvre le changement d heure Europe/Paris. En ete, le passage de `16:15 UTC` correspond a `18:15` a Paris. En hiver, ce premier passage est ignore par la barriere horaire et celui de `17:15 UTC` prend le relais. Les passages suivants sont idempotents et servent de nouvelles tentatives. Railway ignore un declenchement si l execution precedente tourne encore. Le script ne resout pas les CAPTCHA et s arrete explicitement si Cloudflare presente un challenge.
@@ -134,7 +134,8 @@ Variables principales:
 | `IE_ROOMS` | vide | Filtre optionnel, ex. `lyon,marseille` |
 | `IE_DRY_RUN` | `false` | Calcule les fusions sans ecrire dans Supabase |
 | `IE_FORCE` | `false` | Recontrole aussi les ventes deja terminales |
-| `IE_API_ENABLED` | `true` | Utilise l API de lots avant le repli HTML |
+| `IE_API_ENABLED` | `true` | Utilise les API de ventes et de lots Interencheres |
+| `IE_DISCOVERY_HTML_FALLBACK` | `false` | Autorise exceptionnellement le repli vers les pages HTML des maisons |
 | `IE_API_PAGE_SIZE` | `200` | Nombre de lots demandes par appel API |
 | `IE_API_MAX_PAGES_PER_SALE` | `10` | Plafond de pages API par vente |
 | `IE_MAX_PAGES_PER_SALE` | `60` | Plafond de pages par vente IE |
@@ -154,7 +155,7 @@ Apres le deploiement, `/health` doit afficher:
 
 ```json
 {
-  "version": "2026-09-10-details-ct-ocr-v1",
+  "version": "2026-09-10-interencheres-sales-api-v2",
   "transport": "browser"
 }
 ```

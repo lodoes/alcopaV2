@@ -13,6 +13,7 @@ import {
 import {
   IE_AUCTIONEER_DIRECTORY_URL,
   KNOWN_ALCOPA_AUCTIONEERS,
+  discoverInterencheresSalesApi,
   matchInterencheresSales,
   normalizeRoom,
   parseAuctioneerLinks,
@@ -93,7 +94,7 @@ async function discoverSalesForRooms(rooms, targetDate, config) {
     KNOWN_ALCOPA_AUCTIONEERS.map((item) => [normalizeRoom(item.room), item]),
   );
   const missingRooms = rooms.filter((room) => !byRoom.has(normalizeRoom(room)));
-  if (missingRooms.length) {
+  if (missingRooms.length && (!config.apiEnabled || config.discoveryHtmlFallback)) {
     const directory = await fetchHtml(IE_AUCTIONEER_DIRECTORY_URL);
     assertFetchResponse(directory, IE_AUCTIONEER_DIRECTORY_URL, 'Annuaire Interencheres');
     const auctioneers = parseAuctioneerLinks(
@@ -110,6 +111,35 @@ async function discoverSalesForRooms(rooms, targetDate, config) {
       log('ie_auctioneer_missing', { room });
       continue;
     }
+
+    if (config.apiEnabled) {
+      const apiDiscovery = await discoverInterencheresSalesApi({
+        auctioneer,
+        targetDate,
+        fetchJson,
+        maxSales: config.maxCandidatesPerRoom,
+      });
+      log('ie_sales_api_discovery', {
+        room,
+        auctioneerId: auctioneer.auctioneer_id,
+        received: apiDiscovery.received,
+        total: apiDiscovery.total ?? null,
+        candidates: apiDiscovery.sales.length,
+        completed: apiDiscovery.sales.filter((sale) => sale.metadata.completed).length,
+        blocked: apiDiscovery.blocked,
+        error: apiDiscovery.error,
+        blockReason: apiDiscovery.response && (apiDiscovery.blocked || apiDiscovery.error)
+          ? describeBlock(apiDiscovery.apiUrl, apiDiscovery.response)
+          : null,
+      });
+      if (apiDiscovery.complete) {
+        discovered.push(...apiDiscovery.sales);
+        continue;
+      }
+      if (!config.discoveryHtmlFallback) continue;
+      log('ie_sales_discovery_html_fallback', { room, error: apiDiscovery.error });
+    }
+
     const house = await fetchHtml(auctioneer.url);
     assertFetchResponse(house, auctioneer.url, `Maison de ventes ${room}`);
     const candidates = parseAuctioneerSales(house.html, house.finalUrl || auctioneer.url)
@@ -198,6 +228,7 @@ async function runCron() {
     rooms: process.env.IE_ROOMS || '',
     maxPages: envInteger('IE_MAX_PAGES_PER_SALE', 60, { min: 1, max: 100 }),
     apiEnabled: envBoolean('IE_API_ENABLED', true),
+    discoveryHtmlFallback: envBoolean('IE_DISCOVERY_HTML_FALLBACK', false),
     apiPageSize: envInteger('IE_API_PAGE_SIZE', 200, { min: 20, max: 200 }),
     apiMaxPages: envInteger('IE_API_MAX_PAGES_PER_SALE', 10, { min: 1, max: 100 }),
     pageDelayMs: envInteger('IE_PAGE_DELAY_MS', 450, { min: 0, max: 10_000 }),

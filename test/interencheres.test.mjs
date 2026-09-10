@@ -2,11 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  discoverInterencheresSalesApi,
   matchInterencheresSales,
   parseAuctioneerLinks,
   parseAuctioneerSales,
   parseFrenchDate,
   parseInterencheresApiItem,
+  parseInterencheresApiSale,
   parseInterencheresPage,
   scrapeInterencheresSale,
   scrapeInterencheresSaleApi,
@@ -55,6 +57,69 @@ test('auctioneer discovery keeps Alcopa houses and their vehicle sales', () => {
     <a href="/vehicules/vente-687897/lot-123.html">Lot 1</a>`, houses[0].url);
   assert.equal(sales.length, 1);
   assert.equal(sales[0].lots_announced, 448);
+});
+
+test('Interencheres sales API parser identifies a completed Alcopa sale', () => {
+  const metadata = parseInterencheresApiSale({
+    id: 687897,
+    organization: { id: 509, names: { voluntary: 'ALCOPA AUCTION LYON' } },
+    start_at: '2026-09-10T08:00:00Z',
+    has_ended: true,
+    states: { hidden: false, deleted: false, canceled: false },
+    sites: { interencheres: { is_present: true } },
+    category: { field: 'vh' },
+    name_translations: { 'fr-FR': 'Vehicules Utilitaires et Tourisme' },
+    items_count: 448,
+  }, { room: 'lyon', auctioneer_id: '509' });
+
+  assert.equal(metadata.event_id, '687897');
+  assert.equal(metadata.date, '2026-09-10');
+  assert.equal(metadata.room, 'lyon');
+  assert.equal(metadata.room_confirmed, true);
+  assert.equal(metadata.completed, true);
+  assert.equal(metadata.lots_announced, 448);
+  assert.match(metadata.url, /\/vehicules\/vehicules-utilitaires-et-tourisme-687897\/$/);
+});
+
+test('Interencheres sales discovery uses ie4_sales without loading auctioneer HTML', async () => {
+  const calls = [];
+  const sale = {
+    id: 687897,
+    organization: { id: 509, names: { voluntary: 'ALCOPA AUCTION LYON' } },
+    datetime: '2026-09-10T08:00:00Z',
+    live: { has_ended: true },
+    states: { canceled: false },
+    sites: { interencheres: { is_present: true } },
+    category: { field: 'vh' },
+    name_translations: { 'fr-FR': 'Vehicules Utilitaires et Tourisme' },
+    items_count: 448,
+  };
+  const result = await discoverInterencheresSalesApi({
+    auctioneer: {
+      room: 'lyon',
+      auctioneer_id: '509',
+      url: 'https://www.interencheres.com/commissaire-priseur/alcopa-auction-lyon-509/',
+    },
+    targetDate: '2026-09-10',
+    maxSales: 12,
+    fetchJson: async (url, options) => {
+      calls.push({ url, options });
+      return {
+        status: 200,
+        challenge: false,
+        headers: { 'content-range': '0-0/1' },
+        text: JSON.stringify([sale]),
+      };
+    },
+  });
+
+  assert.equal(result.complete, true);
+  assert.equal(result.sales.length, 1);
+  assert.equal(result.sales[0].metadata.event_id, '687897');
+  assert.match(calls[0].url, /ie4_sales/);
+  assert.match(calls[0].url, /filters%5Borganization%5D=509/);
+  assert.match(calls[0].url, /filters%5Bdatetime_range%5D=2026-09-10%2C2026-09-10/);
+  assert.equal(calls[0].options.headers['x-range'], 'sales=0-199');
 });
 
 test('Interencheres page parser extracts terminal results and pagination', () => {
