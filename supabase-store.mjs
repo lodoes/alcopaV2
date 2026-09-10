@@ -64,6 +64,21 @@ const DETAIL_LOT_COLUMNS = [
   'ct_error',
 ];
 
+// These values come from the completed Interencheres sale. Alcopa catalogue
+// refreshes must never reset them to null or back to "en_cours".
+const INTERENCHERES_RESULT_COLUMNS = new Set([
+  'enchere_courante',
+  'prix_adjudication_eur',
+  'statut',
+  'canal',
+  'url_interencheres',
+  'lot_interencheres_id',
+]);
+
+const ALCOPA_CATALOG_COLUMNS = BASE_LOT_COLUMNS.filter(
+  (column) => !INTERENCHERES_RESULT_COLUMNS.has(column),
+);
+
 function chunks(items, size) {
   const result = [];
   for (let index = 0; index < items.length; index += size) {
@@ -86,7 +101,9 @@ function assertTableName(value, label) {
 }
 
 function serializeLot(lot, includeDetails) {
-  const columns = includeDetails ? [...BASE_LOT_COLUMNS, ...DETAIL_LOT_COLUMNS] : BASE_LOT_COLUMNS;
+  const columns = includeDetails
+    ? [...ALCOPA_CATALOG_COLUMNS, ...DETAIL_LOT_COLUMNS]
+    : ALCOPA_CATALOG_COLUMNS;
   const row = {};
   for (const column of columns) row[column] = lot[column] ?? null;
   row.raw_json = lot;
@@ -205,4 +222,11 @@ function createSupabaseStore(options = {}) {
   };
 }
 
-export { BASE_LOT_COLUMNS, DETAIL_LOT_COLUMNS, createSupabaseStore, serializeLot };
+export {
+  ALCOPA_CATALOG_COLUMNS,
+  BASE_LOT_COLUMNS,
+  DETAIL_LOT_COLUMNS,
+  INTERENCHERES_RESULT_COLUMNS,
+  createSupabaseStore,
+  serializeLot,
+};

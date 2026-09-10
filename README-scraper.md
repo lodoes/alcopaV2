@@ -99,6 +99,14 @@ Variables principales du cron:
 
 Le traitement est incremental: le catalogue est mis a jour, puis Supabase fournit seulement les lots dont `annonce_fetched_at` ou `ct_ocr_done_at` est encore vide. Railway utilise les horaires UTC et ignore un nouveau declenchement si le precedent tourne encore.
 
+## Resultats d adjudication Interencheres
+
+Alcopa reste la source du catalogue, des caracteristiques, des photos et des controles techniques. Les champs de fin de vente viennent d Interencheres: `prix_adjudication_eur`, `statut`, `canal`, `url_interencheres` et `lot_interencheres_id`.
+
+Le dashboard local `analytics/alcopa-analytics.html` contient un bouton `Importer Interencheres`. Apres execution du bookmarklet Interencheres V2 sur la vente terminee, coller son JSON puis analyser les correspondances. La fusion exige la meme salle, la meme date et le meme numero de lot. Les lignes absentes ou ambigues sont ignorees et aucun lot Interencheres incomplet n est cree.
+
+Le `sale_id` contenu dans le JSON Interencheres n est pas le `sale_id` Alcopa et n est donc jamais copie. Les mises a jour Alcopa omettent volontairement les champs appartenant a Interencheres afin qu un cron ulterieur ne supprime pas les prix et statuts deja importes.
+
 ## Transport navigateur sur Railway
 
 Le `Dockerfile` installe Chromium et configure automatiquement `SCRAPER_TRANSPORT=browser`. Railway utilise ce fichier grace a la section `build` de `railway.json`. Une seule replique est placee en EU West (Amsterdam) afin d'heberger le service au plus pres du site francais.
