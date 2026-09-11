@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lots Unifies Analytics</title>
+<style>
+:root {
+  --bg: #f5f7fb;
+  --surface: #ffffff;
+  --surface-2: #eef3f8;
+  --line: #d9e1ea;
+  --text: #172033;
+  --muted: #64748b;
+  --blue: #2563eb;
+  --teal: #0f766e;
+  --amber: #b45309;
+  --red: #dc2626;
+  --green: #15803d;
+  --violet: #6d28d9;
+  --shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+button, input, select { font: inherit; }
+.app {
+  display: grid;
+  grid-template-columns: 290px minmax(0, 1fr);
+  min-height: 100vh;
+}
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: auto;
+  padding: 18px;
+  border-right: 1px solid var(--line);
+  background: #101827;
+  color: #f8fafc;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.brand-mark {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: #2563eb;
+  font-weight: 800;
+}
+.brand h1 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.1;
+}
+.brand p {
+  margin: 3px 0 0;
+  color: #94a3b8;
+  font-size: 12px;
+}
+.side-section {
+  padding: 14px 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+.side-title {
+  margin: 0 0 10px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.stack { display: grid; gap: 9px; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.field, .select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 7px;
+  background: #0b1220;
+  color: #f8fafc;
+  padding: 8px 10px;
+  outline: none;
+}
+.field::placeholder { color: #75829a; }
+.select { cursor: pointer; }
+.btn {
+  min-height: 38px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 7px;
+  padding: 8px 10px;
+  background: #182235;
+  color: #f8fafc;
+  cursor: pointer;
+  font-weight: 700;
+}
+.btn:hover { border-color: #93c5fd; }
+.btn.primary {
+  background: var(--blue);
+  border-color: var(--blue);
+}
+.btn.light {
+  background: #ffffff;
+  color: var(--text);
+  border-color: var(--line);
+}
+.note {
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.main {
+  padding: 22px;
+  min-width: 0;
+}
+.topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.title h2 {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.1;
+}
+.title p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+.statusbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.pill {
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(135px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.kpi, .panel, .table-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+.kpi { padding: 12px; min-height: 98px; }
+.kpi-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.kpi-value {
+  margin-top: 8px;
+  font-size: 25px;
+  font-weight: 850;
+  line-height: 1.1;
+}
+.kpi-sub {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.panel {
+  padding: 14px;
+  min-height: 265px;
+}
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+.panel h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.panel .meta {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.bar-list {
+  display: grid;
+  gap: 10px;
+}
+.bar-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+.bar-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  font-weight: 700;
+}
+.bar-track {
+  height: 9px;
+  margin-top: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+.bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--blue);
+}
+.bar-fill.teal { background: var(--teal); }
+.bar-fill.amber { background: var(--amber); }
+.bar-fill.green { background: var(--green); }
+.bar-fill.violet { background: var(--violet); }
+.bar-value {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 800;
+}
+.split-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.metric-box {
+  min-height: 76px;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface-2);
+}
+.metric-box strong {
+  display: block;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+  font-size: 16px;
+}
+.metric-box span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.table-panel { overflow: hidden; }
+.table-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.table-head strong { font-size: 15px; }
+.table-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+.table-wrap {
+  max-height: 650px;
+  overflow: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #edf2f7;
+  color: #475569;
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+td {
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  white-space: nowrap;
+}
+td.vehicle {
+  min-width: 245px;
+  max-width: 340px;
+  white-space: normal;
+}
+.vehicle-title { font-weight: 800; }
+.vehicle-sub {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.badge {
+  display: inline-flex;
+  max-width: 125px;
+  min-height: 24px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 800;
+}
+.badge.adjuge { background: #dcfce7; color: #166534; }
+.badge.invendu { background: #fee2e2; color: #991b1b; }
+.badge.en_cours { background: #fef3c7; color: #92400e; }
+.badge.other { background: #e0e7ff; color: #3730a3; }
+.link {
+  color: var(--blue);
+  font-weight: 800;
+  text-decoration: none;
+}
+.empty {
+  padding: 28px 12px;
+  color: var(--muted);
+  text-align: center;
+}
+.toast {
+  position: fixed;
+  right: 16px;
+  top: 16px;
+  max-width: min(440px, calc(100vw - 32px));
+  z-index: 20;
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #101827;
+  color: #fff;
+  box-shadow: var(--shadow);
+  font-weight: 700;
+}
+.toast.error { background: var(--red); }
+.toast.ok { background: var(--green); }
+.toast.warn { background: var(--amber); }
+@media (max-width: 1180px) {
+  .kpis { grid-template-columns: repeat(3, minmax(135px, 1fr)); }
+  .grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 800px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar { position: relative; height: auto; }
+  .main { padding: 14px; }
+  .topbar { display: grid; }
+  .statusbar { justify-content: flex-start; }
+  .kpis { grid-template-columns: repeat(2, minmax(135px, 1fr)); }
+}
+@media (max-width: 520px) {
+  .kpis, .row, .split-metrics { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">A</div>
+      <div>
+        <h1>Lots Unifies</h1>
+        <p>Analytics Supabase live</p>
+      </div>
+    </div>
+
+    <section class="side-section">
+      <h2 class="side-title">Connexion</h2>
+      <div class="stack">
+        <input class="field" id="supabase-url" placeholder="https://...supabase.co/rest/v1">
+        <input class="field" id="supabase-key" placeholder="Anon / publishable key">
+        <input class="field" id="supabase-table" value="lots_unifies" placeholder="Vue ou table">
+        <div class="row">
+          <button class="btn" id="save-btn" type="button">Sauver</button>
+          <button class="btn primary" id="load-btn" type="button">Charger</button>
+        </div>
+        <p class="note">Lecture seule depuis la vue `lots_unifies`. La config reste dans ce navigateur.</p>
+      </div>
+    </section>
+
+    <section class="side-section">
+      <h2 class="side-title">Filtres</h2>
+      <div class="stack">
+        <input class="field" id="q" placeholder="Recherche lot, marque, modele...">
+        <select class="select" id="source-filter"><option value="">Toutes sources</option></select>
+        <select class="select" id="salle-filter"><option value="">Toutes salles</option></select>
+        <select class="select" id="date-filter"><option value="">Toutes dates</option></select>
+        <select class="select" id="statut-filter"><option value="">Tous statuts</option></select>
+        <select class="select" id="marque-filter"><option value="">Toutes marques</option></select>
+        <select class="select" id="energie-filter"><option value="">Toutes energies</option></select>
+        <select class="select" id="ct-filter"><option value="">Tous CT</option></select>
+        <div class="row">
+          <input class="field" id="price-min" inputmode="numeric" placeholder="Prix min">
+          <input class="field" id="price-max" inputmode="numeric" placeholder="Prix max">
+        </div>
+        <div class="row">
+          <input class="field" id="year-min" inputmode="numeric" placeholder="Annee min">
+          <input class="field" id="km-max" inputmode="numeric" placeholder="Km max">
+        </div>
+        <div class="row">
+          <button class="btn" id="reset-btn" type="button">Reset</button>
+          <button class="btn" id="csv-btn" type="button">CSV</button>
+        </div>
+      </div>
+    </section>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="title">
+        <h2>Analytics unifiees</h2>
+        <p>Ancienne table `lots` + nouveau flux `alcopa_lots`, dedoublonnes par la vue Supabase.</p>
+      </div>
+      <div class="statusbar">
+        <span class="pill" id="load-state">Pas charge</span>
+        <span class="pill" id="rows-state">0 ligne</span>
+        <span class="pill" id="sort-state">Tri date desc</span>
+      </div>
+    </header>
+
+    <section class="kpis" aria-label="Indicateurs">
+      <div class="kpi"><div class="kpi-label">Lots filtres</div><div class="kpi-value" id="kpi-total">0</div><div class="kpi-sub" id="kpi-total-sub">sur 0</div></div>
+      <div class="kpi"><div class="kpi-label">Adjuges</div><div class="kpi-value" id="kpi-sold">0</div><div class="kpi-sub" id="kpi-sold-sub">taux 0%</div></div>
+      <div class="kpi"><div class="kpi-label">CA vendu</div><div class="kpi-value" id="kpi-revenue">0 EUR</div><div class="kpi-sub">prix adjudication</div></div>
+      <div class="kpi"><div class="kpi-label">Prix moyen</div><div class="kpi-value" id="kpi-average">0 EUR</div><div class="kpi-sub">sur vendus</div></div>
+      <div class="kpi"><div class="kpi-label">CT trouves</div><div class="kpi-value" id="kpi-ct">0</div><div class="kpi-sub" id="kpi-ct-sub">0% des lots</div></div>
+      <div class="kpi"><div class="kpi-label">Maj donnees</div><div class="kpi-value" id="kpi-fresh">-</div><div class="kpi-sub">source_updated_at</div></div>
+    </section>
+
+    <section class="grid">
+      <div class="panel">
+        <div class="panel-head"><div><h3>Mix source</h3><p class="meta">Controle du mix ancien/nouveau</p></div></div>
+        <div class="bar-list" id="source-bars"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><h3>Statuts</h3><p class="meta">Pipeline vente</p></div></div>
+        <div class="bar-list" id="status-bars"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><h3>Synthese</h3><p class="meta">Meilleurs signaux filtres</p></div></div>
+        <div class="split-metrics" id="summary-boxes"></div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="panel">
+        <div class="panel-head"><div><h3>Salles</h3><p class="meta">CA par salle</p></div></div>
+        <div class="bar-list" id="room-bars"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><h3>Marques</h3><p class="meta">Vendus par marque</p></div></div>
+        <div class="bar-list" id="brand-bars"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><h3>Controle technique</h3><p class="meta">Verdicts et couverture OCR</p></div></div>
+        <div class="bar-list" id="ct-bars"></div>
+      </div>
+    </section>
+
+    <section class="table-panel">
+      <div class="table-head">
+        <div>
+          <strong>Lots</strong>
+          <div class="table-meta" id="table-meta">Clique sur une colonne pour trier</div>
+        </div>
+        <div class="table-meta" id="loading" hidden>Chargement...</div>
+      </div>
+      <div class="table-wrap" id="table-wrap"></div>
+    </section>
+  </main>
+</div>
+
+<script>
+const DEFAULTS = {
+  url: 'https://gqmopxnrlacxyxiigjob.supabase.co/rest/v1',
+  key: 'sb_publishable_BglDdUO2tKYBBS4HzZjqyw_iQD-Q4KS',
+  table: 'lots_unifies'
+};
+const CONFIG_KEY = 'alcopa_lots_unifies_analytics_config';
+const state = {
+  all: [],
+  filtered: [],
+  sort: { key: 'source_updated_at', dir: 'desc' }
+};
+const columns = [
+  { key: 'date_vente', label: 'Date', type: 'string' },
+  { key: 'salle', label: 'Salle', type: 'string' },
+  { key: 'lot_number', label: 'Lot', type: 'number' },
+  { key: 'vehicle', label: 'Vehicule', type: 'string' },
+  { key: 'annee_mec', label: 'Annee', type: 'number' },
+  { key: 'km', label: 'Km', type: 'number' },
+  { key: 'energie', label: 'Energie', type: 'string' },
+  { key: 'mise_a_prix', label: 'Depart', type: 'number' },
+  { key: 'prix_adjudication_eur', label: 'Adjuge', type: 'number' },
+  { key: 'statut', label: 'Statut', type: 'string' },
+  { key: 'ct_verdict', label: 'CT', type: 'string' },
+  { key: 'source_table', label: 'Source', type: 'string' }
+];
+
+const $ = (id) => document.getElementById(id);
+const asText = (value) => value == null ? '' : String(value);
+const asNumber = (value) => {
+  if (value == null || value === '') return 0;
+  const normalized = String(value).replace(/\s/g, '').replace(',', '.');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+const fmtInt = (value) => Math.round(asNumber(value)).toLocaleString('fr-FR');
+const fmtMoney = (value) => asNumber(value).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' EUR';
+const fmtPct = (value) => asNumber(value).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+const escapeHtml = (value) => asText(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
+const vehicleName = (lot) => [lot.marque, lot.modele].filter(Boolean).join(' ') || lot.description || '-';
+const linkFor = (lot) => lot.url_alcopa || lot.url_interencheres || '';
+const isSold = (lot) => ['adjuge', 'adjugé', 'vendu', 'sold'].includes(asText(lot.statut).toLowerCase());
+const hasCt = (lot) => Boolean(lot.url_ct || lot.ct_verdict || lot.ct_defauts_maj || lot.ct_defauts_min);
+
+function getConfig() {
+  try {
+    return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}') };
+  } catch {
+    return { ...DEFAULTS };
+  }
+}
+
+function hydrateConfig() {
+  const cfg = getConfig();
+  $('supabase-url').value = cfg.url;
+  $('supabase-key').value = cfg.key;
+  $('supabase-table').value = cfg.table;
+}
+
+function saveConfig({ silent = false } = {}) {
+  const cfg = {
+    url: $('supabase-url').value.trim().replace(/\/+$/, ''),
+    key: $('supabase-key').value.trim(),
+    table: $('supabase-table').value.trim() || 'lots_unifies'
+  };
+  if (!cfg.url || !cfg.key || !cfg.table) {
+    toast('Config Supabase incomplete', 'warn');
+    return null;
+  }
+  localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
+  if (!silent) toast('Config sauvegardee', 'ok');
+  return cfg;
+}
+
+function toast(message, type = 'ok') {
+  const existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = message;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2800);
+}
+
+function setLoading(value) {
+  $('loading').hidden = !value;
+  $('load-state').textContent = value ? 'Chargement' : (state.all.length ? 'Sync OK' : 'Pas charge');
+}
+
+function queryUrl(cfg, from, to) {
+  const base = cfg.url.endsWith('/rest/v1') ? cfg.url : cfg.url + '/rest/v1';
+  const url = new URL(base + '/' + encodeURIComponent(cfg.table));
+  url.searchParams.set('select', '*');
+  url.searchParams.set('order', 'source_updated_at.desc.nullslast');
+  return { url: String(url), range: from + '-' + to };
+}
+
+async function fetchAllRows(cfg) {
+  const rows = [];
+  const step = 1000;
+  let from = 0;
+  while (true) {
+    const { url, range } = queryUrl(cfg, from, from + step - 1);
+    const response = await fetch(url, {
+      headers: {
+        apikey: cfg.key,
+        Authorization: 'Bearer ' + cfg.key,
+        'Range-Unit': 'items',
+        Range: range
+      }
+    });
+    if (!response.ok) {
+      const preview = await response.text();
+      throw new Error('HTTP ' + response.status + ' ' + preview.slice(0, 220));
+    }
+    const batch = await response.json();
+    rows.push(...batch);
+    if (batch.length < step) break;
+    from += step;
+  }
+  return rows;
+}
+
+function uniqueSorted(rows, key) {
+  return [...new Set(rows.map((row) => asText(row[key]).trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'fr', { numeric: true, sensitivity: 'base' }));
+}
+
+function fillSelect(id, label, values) {
+  const el = $(id);
+  const current = el.value;
+  el.innerHTML = '<option value="">' + escapeHtml(label) + '</option>';
+  for (const value of values) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = value;
+    if (value === current) option.selected = true;
+    el.appendChild(option);
+  }
+}
+
+function hydrateFilters() {
+  fillSelect('source-filter', 'Toutes sources', uniqueSorted(state.all, 'source_table'));
+  fillSelect('salle-filter', 'Toutes salles', uniqueSorted(state.all, 'salle'));
+  fillSelect('date-filter', 'Toutes dates', uniqueSorted(state.all, 'date_vente').reverse());
+  fillSelect('statut-filter', 'Tous statuts', uniqueSorted(state.all, 'statut'));
+  fillSelect('marque-filter', 'Toutes marques', uniqueSorted(state.all, 'marque'));
+  fillSelect('energie-filter', 'Toutes energies', uniqueSorted(state.all, 'energie'));
+  fillSelect('ct-filter', 'Tous CT', uniqueSorted(state.all, 'ct_verdict'));
+}
+
+function activeFilters() {
+  return {
+    q: $('q').value.trim().toLowerCase(),
+    source: $('source-filter').value,
+    salle: $('salle-filter').value,
+    date: $('date-filter').value,
+    statut: $('statut-filter').value,
+    marque: $('marque-filter').value,
+    energie: $('energie-filter').value,
+    ct: $('ct-filter').value,
+    priceMin: asNumber($('price-min').value),
+    priceMax: $('price-max').value.trim() ? asNumber($('price-max').value) : Infinity,
+    yearMin: asNumber($('year-min').value),
+    kmMax: $('km-max').value.trim() ? asNumber($('km-max').value) : Infinity
+  };
+}
+
+function matchesFilters(lot, f) {
+  if (f.q) {
+    const haystack = [
+      lot.unified_key, lot.sale_id, lot.salle, lot.date_vente, lot.lot_number,
+      lot.marque, lot.modele, lot.description, lot.energie, lot.boite,
+      lot.statut, lot.canal, lot.ct_verdict, lot.source_table
+    ].join(' ').toLowerCase();
+    if (!haystack.includes(f.q)) return false;
+  }
+  if (f.source && lot.source_table !== f.source) return false;
+  if (f.salle && lot.salle !== f.salle) return false;
+  if (f.date && lot.date_vente !== f.date) return false;
+  if (f.statut && lot.statut !== f.statut) return false;
+  if (f.marque && lot.marque !== f.marque) return false;
+  if (f.energie && lot.energie !== f.energie) return false;
+  if (f.ct && lot.ct_verdict !== f.ct) return false;
+  const price = asNumber(lot.prix_adjudication_eur || lot.enchere_courante || lot.estimation_eur || lot.mise_a_prix);
+  if (price < f.priceMin || price > f.priceMax) return false;
+  const year = asNumber(lot.annee_mec);
+  if (f.yearMin && year && year < f.yearMin) return false;
+  const km = asNumber(lot.km);
+  if (km && km > f.kmMax) return false;
+  return true;
+}
+
+function compareRows(a, b) {
+  const key = state.sort.key;
+  const spec = columns.find((col) => col.key === key) || { type: 'string' };
+  const av = key === 'vehicle' ? vehicleName(a) : a[key];
+  const bv = key === 'vehicle' ? vehicleName(b) : b[key];
+  let result = 0;
+  if (spec.type === 'number') {
+    result = asNumber(av) - asNumber(bv);
+  } else {
+    result = asText(av).localeCompare(asText(bv), 'fr', { numeric: true, sensitivity: 'base' });
+  }
+  return state.sort.dir === 'asc' ? result : -result;
+}
+
+function aggregate(rows, getter) {
+  const map = new Map();
+  for (const row of rows) {
+    const key = getter(row) || 'Non renseigne';
+    if (!map.has(key)) map.set(key, { key, count: 0, sold: 0, revenue: 0 });
+    const item = map.get(key);
+    item.count += 1;
+    if (isSold(row)) {
+      item.sold += 1;
+      item.revenue += asNumber(row.prix_adjudication_eur);
+    }
+  }
+  return [...map.values()];
+}
+
+function renderBars(id, rows, valueKey, options = {}) {
+  const el = $(id);
+  if (!rows.length) {
+    el.innerHTML = '<div class="empty">Pas de donnees</div>';
+    return;
+  }
+  const max = Math.max(...rows.map((row) => asNumber(row[valueKey])), 1);
+  el.innerHTML = rows.map((row) => {
+    const width = Math.max((asNumber(row[valueKey]) / max) * 100, 3);
+    const value = options.format ? options.format(row) : fmtInt(row[valueKey]);
+    return '<div class="bar-row"><div><div class="bar-name" title="' + escapeHtml(row.key) + '">' +
+      escapeHtml(row.key) + '</div><div class="bar-track"><div class="bar-fill ' +
+      escapeHtml(options.color || '') + '" style="width:' + width.toFixed(2) +
+      '%"></div></div></div><div class="bar-value">' + escapeHtml(value) + '</div></div>';
+  }).join('');
+}
+
+function newestDate(rows) {
+  const dates = rows.map((row) => Date.parse(row.source_updated_at)).filter(Number.isFinite);
+  if (!dates.length) return '-';
+  return new Date(Math.max(...dates)).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+}
+
+function renderKpis(rows) {
+  const sold = rows.filter(isSold);
+  const revenue = sold.reduce((sum, row) => sum + asNumber(row.prix_adjudication_eur), 0);
+  const ctCount = rows.filter(hasCt).length;
+  $('kpi-total').textContent = fmtInt(rows.length);
+  $('kpi-total-sub').textContent = 'sur ' + fmtInt(state.all.length);
+  $('kpi-sold').textContent = fmtInt(sold.length);
+  $('kpi-sold-sub').textContent = 'taux ' + fmtPct(rows.length ? sold.length / rows.length * 100 : 0);
+  $('kpi-revenue').textContent = fmtMoney(revenue);
+  $('kpi-average').textContent = fmtMoney(sold.length ? revenue / sold.length : 0);
+  $('kpi-ct').textContent = fmtInt(ctCount);
+  $('kpi-ct-sub').textContent = fmtPct(rows.length ? ctCount / rows.length * 100 : 0) + ' des lots';
+  $('kpi-fresh').textContent = newestDate(rows);
+}
+
+function renderSummary(rows) {
+  const sold = rows.filter(isSold);
+  const topBrand = aggregate(rows, (row) => row.marque).sort((a, b) => b.sold - a.sold)[0];
+  const topRoom = aggregate(rows, (row) => row.salle).sort((a, b) => b.revenue - a.revenue)[0];
+  const years = rows.map((row) => asNumber(row.annee_mec)).filter(Boolean);
+  const kmValues = rows.map((row) => asNumber(row.km)).filter(Boolean);
+  const boxes = [
+    ['Marque top', topBrand ? topBrand.key + ' (' + topBrand.sold + ')' : '-'],
+    ['Salle CA', topRoom ? topRoom.key + ' (' + fmtMoney(topRoom.revenue) + ')' : '-'],
+    ['Annee moy.', years.length ? Math.round(years.reduce((a, b) => a + b, 0) / years.length) : '-'],
+    ['Km median', kmValues.length ? fmtInt(kmValues.sort((a, b) => a - b)[Math.floor(kmValues.length / 2)]) : '-'],
+    ['Lots vendus', fmtInt(sold.length)],
+    ['Liens IE', fmtInt(rows.filter((row) => row.url_interencheres).length)]
+  ];
+  $('summary-boxes').innerHTML = boxes.map(([label, value]) =>
+    '<div class="metric-box"><span>' + escapeHtml(label) + '</span><strong>' + escapeHtml(value) + '</strong></div>'
+  ).join('');
+}
+
+function renderCharts(rows) {
+  renderBars('source-bars', aggregate(rows, (row) => row.source_table).sort((a, b) => b.count - a.count), 'count', {
+    color: 'violet',
+    format: (row) => fmtInt(row.count) + ' lots'
+  });
+  renderBars('status-bars', aggregate(rows, (row) => row.statut).sort((a, b) => b.count - a.count), 'count', {
+    color: 'amber',
+    format: (row) => fmtInt(row.count) + ' lots'
+  });
+  renderBars('room-bars', aggregate(rows, (row) => row.salle).sort((a, b) => b.revenue - a.revenue).slice(0, 10), 'revenue', {
+    color: 'teal',
+    format: (row) => fmtMoney(row.revenue)
+  });
+  renderBars('brand-bars', aggregate(rows, (row) => row.marque).sort((a, b) => b.sold - a.sold || b.count - a.count).slice(0, 10), 'sold', {
+    color: 'green',
+    format: (row) => fmtInt(row.sold) + ' vendus'
+  });
+  renderBars('ct-bars', aggregate(rows, (row) => row.ct_verdict || (hasCt(row) ? 'CT present' : 'Sans CT')).sort((a, b) => b.count - a.count), 'count', {
+    color: 'blue',
+    format: (row) => fmtInt(row.count) + ' lots'
+  });
+  renderSummary(rows);
+}
+
+function sortIndicator(key) {
+  if (state.sort.key !== key) return '';
+  return state.sort.dir === 'asc' ? ' ▲' : ' ▼';
+}
+
+function statusClass(value) {
+  const normalized = asText(value).toLowerCase();
+  if (normalized === 'adjuge' || normalized === 'adjugé') return 'adjuge';
+  if (normalized === 'invendu') return 'invendu';
+  if (normalized === 'en_cours') return 'en_cours';
+  return 'other';
+}
+
+function setSort(key) {
+  if (state.sort.key === key) {
+    state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    state.sort = { key, dir: key === 'date_vente' || key === 'source_updated_at' ? 'desc' : 'asc' };
+  }
+  applyAll();
+}
+
+function renderTable(rows) {
+  $('rows-state').textContent = fmtInt(rows.length) + ' lignes';
+  $('sort-state').textContent = 'Tri ' + state.sort.key + ' ' + state.sort.dir;
+  $('table-meta').textContent = fmtInt(rows.length) + ' lignes filtrees';
+  const wrap = $('table-wrap');
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="empty">Aucun lot dans ce filtre</div>';
+    return;
+  }
+  let html = '<table><thead><tr>';
+  for (const column of columns) {
+    html += '<th data-sort="' + escapeHtml(column.key) + '">' + escapeHtml(column.label + sortIndicator(column.key)) + '</th>';
+  }
+  html += '<th>Liens</th></tr></thead><tbody>';
+  for (const lot of rows.slice(0, 500)) {
+    const url = linkFor(lot);
+    html += '<tr>';
+    html += '<td>' + escapeHtml(lot.date_vente || '-') + '</td>';
+    html += '<td>' + escapeHtml(lot.salle || '-') + '</td>';
+    html += '<td>' + escapeHtml(lot.lot_number || '-') + '</td>';
+    html += '<td class="vehicle"><div class="vehicle-title">' + escapeHtml(vehicleName(lot)) + '</div><div class="vehicle-sub">' + escapeHtml([lot.description, lot.boite, lot.lieu_stockage].filter(Boolean).join(' | ')) + '</div></td>';
+    html += '<td>' + escapeHtml(lot.annee_mec || '-') + '</td>';
+    html += '<td>' + (lot.km ? fmtInt(lot.km) : '-') + '</td>';
+    html += '<td>' + escapeHtml(lot.energie || '-') + '</td>';
+    html += '<td>' + (lot.mise_a_prix ? fmtMoney(lot.mise_a_prix) : '-') + '</td>';
+    html += '<td>' + (lot.prix_adjudication_eur ? fmtMoney(lot.prix_adjudication_eur) : '-') + '</td>';
+    html += '<td><span class="badge ' + statusClass(lot.statut) + '">' + escapeHtml(lot.statut || '-') + '</span></td>';
+    html += '<td>' + escapeHtml(lot.ct_verdict || (hasCt(lot) ? 'present' : '-')) + '</td>';
+    html += '<td>' + escapeHtml(lot.source_table || '-') + '</td>';
+    html += '<td>' + (url ? '<a class="link" target="_blank" rel="noreferrer" href="' + escapeHtml(url) + '">ouvrir</a>' : '-') + '</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  if (rows.length > 500) {
+    html += '<div class="empty">Affichage limite a 500 lignes. Utilise le CSV pour exporter les ' + fmtInt(rows.length) + ' lignes filtrees.</div>';
+  }
+  wrap.innerHTML = html;
+  wrap.querySelectorAll('th[data-sort]').forEach((th) => th.addEventListener('click', () => setSort(th.dataset.sort)));
+}
+
+function applyAll() {
+  const f = activeFilters();
+  state.filtered = state.all.filter((row) => matchesFilters(row, f)).sort(compareRows);
+  renderKpis(state.filtered);
+  renderCharts(state.filtered);
+  renderTable(state.filtered);
+}
+
+function resetFilters() {
+  ['q', 'source-filter', 'salle-filter', 'date-filter', 'statut-filter', 'marque-filter', 'energie-filter', 'ct-filter', 'price-min', 'price-max', 'year-min', 'km-max']
+    .forEach((id) => { $(id).value = ''; });
+  applyAll();
+}
+
+function downloadCsv() {
+  if (!state.filtered.length) {
+    toast('Aucune ligne a exporter', 'warn');
+    return;
+  }
+  const fields = [
+    'unified_key', 'source_table', 'sale_id', 'date_vente', 'salle', 'lot_number',
+    'marque', 'modele', 'description', 'energie', 'annee_mec', 'km', 'boite',
+    'mise_a_prix', 'enchere_courante', 'estimation_eur', 'prix_adjudication_eur',
+    'statut', 'canal', 'url_alcopa', 'url_interencheres', 'url_ct', 'ct_verdict'
+  ];
+  const lines = state.filtered.map((row) => fields.map((field) => {
+    const value = asText(row[field]).replace(/"/g, '""');
+    return /[",\n]/.test(value) ? '"' + value + '"' : value;
+  }).join(','));
+  const blob = new Blob(['\uFEFF' + fields.join(',') + '\n' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'lots_unifies_' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function loadData() {
+  const cfg = saveConfig({ silent: true });
+  if (!cfg) return;
+  setLoading(true);
+  try {
+    const rows = await fetchAllRows(cfg);
+    state.all = rows;
+    hydrateFilters();
+    applyAll();
+    toast(fmtInt(rows.length) + ' lots charges', 'ok');
+  } catch (error) {
+    toast('Erreur Supabase: ' + error.message, 'error');
+  } finally {
+    setLoading(false);
+  }
+}
+
+['q', 'source-filter', 'salle-filter', 'date-filter', 'statut-filter', 'marque-filter', 'energie-filter', 'ct-filter', 'price-min', 'price-max', 'year-min', 'km-max']
+  .forEach((id) => $(id).addEventListener('input', applyAll));
+$('save-btn').addEventListener('click', () => saveConfig());
+$('load-btn').addEventListener('click', loadData);
+$('reset-btn').addEventListener('click', resetFilters);
+$('csv-btn').addEventListener('click', downloadCsv);
+
+hydrateConfig();
+applyAll();
+</script>
+</body>
+</html>

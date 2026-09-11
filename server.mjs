@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { readFile } from 'node:fs/promises';
 import {
   BASE_URL,
   DEFAULT_URL,
@@ -20,7 +21,7 @@ import { createSupabaseStore } from './supabase-store.mjs';
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
-const APP_VERSION = '2026-09-10-interencheres-sales-api-v2';
+const APP_VERSION = '2026-09-11-lots-unifies-analytics-v1';
 const DEFAULT_MAX_PAGES = Number(process.env.DEFAULT_MAX_PAGES || 30);
 const MAX_ALLOWED_PAGES = Number(process.env.MAX_ALLOWED_PAGES || 40);
 const DEFAULT_DELAY_MS = Number(process.env.DEFAULT_DELAY_MS || 350);
@@ -67,6 +68,13 @@ function send(res, status, body, headers = {}) {
     ...headers,
   });
   res.end(payload);
+}
+
+async function sendHtmlFile(res, filePath) {
+  const html = await readFile(filePath, 'utf8');
+  send(res, 200, html, {
+    'content-type': 'text/html; charset=utf-8',
+  });
 }
 
 function readJsonBody(req, maxBytes = MAX_IMPORT_BYTES) {
@@ -628,6 +636,7 @@ const server = http.createServer(async (req, res) => {
         railwayRegion: process.env.RAILWAY_REPLICA_REGION || null,
         supabase: supabaseEnvStatus(),
         endpoints: {
+          analytics: '/analytics/lots-unifies',
           scrape: '/scrape?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=30',
           enriched: '/scrape?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=1&details=1&detailLimit=3&ocr=1&ocrLimit=1',
           vehicle: '/vehicle?url=https://www.alcopa-auction.fr/voiture-occasion/...&ocr=1',
@@ -638,6 +647,11 @@ const server = http.createServer(async (req, res) => {
           debug: '/debug?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371',
         },
       });
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/analytics/lots-unifies') {
+      await sendHtmlFile(res, new URL('./analytics/lots-unifies-analytics.html', import.meta.url));
       return;
     }
 
