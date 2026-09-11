@@ -21,7 +21,7 @@ import { createSupabaseStore } from './supabase-store.mjs';
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
-const APP_VERSION = '2026-09-11-lots-unifies-analytics-v1';
+const APP_VERSION = '2026-09-11-interencheres-today-v1';
 const DEFAULT_MAX_PAGES = Number(process.env.DEFAULT_MAX_PAGES || 30);
 const MAX_ALLOWED_PAGES = Number(process.env.MAX_ALLOWED_PAGES || 40);
 const DEFAULT_DELAY_MS = Number(process.env.DEFAULT_DELAY_MS || 350);
@@ -75,6 +75,94 @@ async function sendHtmlFile(res, filePath) {
   send(res, 200, html, {
     'content-type': 'text/html; charset=utf-8',
   });
+}
+
+function interencheresTodayPage() {
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interencheres du jour</title>
+<style>
+:root{--bg:#0f0e0d;--surface:#171614;--surface2:#1f1d1a;--line:rgba(255,240,220,.1);--text:#f3eee7;--muted:#8f8379;--accent:#e8a44a;--green:#4ade80;--blue:#60a5fa;--red:#f87171}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.wrap{max-width:720px;margin:0 auto;padding:18px 14px 28px}.top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px}
+h1{margin:0;font-size:24px;line-height:1.1}.date{color:var(--muted);font-size:13px;margin-top:5px}.badge{border:1px solid var(--line);border-radius:999px;background:var(--surface2);color:var(--accent);padding:7px 10px;font-size:12px;font-weight:800;white-space:nowrap}
+.section{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:13px;margin-bottom:13px}.section h2{margin:0 0 10px;font-size:13px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.grid{display:grid;gap:9px}.row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:stretch}.salle{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:56px;border:1px solid var(--line);border-radius:10px;background:var(--surface2);color:var(--text);padding:10px 12px;text-decoration:none}
+.salle.today{border-color:rgba(74,222,128,.38);box-shadow:0 0 0 1px rgba(74,222,128,.12) inset}.name{font-size:17px;font-weight:850}.day{display:block;margin-top:3px;color:var(--muted);font-size:12px}.hint{color:var(--muted);font-size:12px;line-height:1.45;margin-top:10px}
+.open{min-width:48px;border:1px solid var(--line);border-radius:10px;background:var(--accent);color:#171614;font-size:18px;font-weight:900;text-decoration:none;display:grid;place-items:center}.open:active,.salle:active{transform:translateY(1px)}
+.empty{border:1px dashed var(--line);border-radius:10px;padding:18px;color:var(--muted);text-align:center}.tools{display:grid;grid-template-columns:1fr 1fr;gap:8px}.btn{min-height:42px;border:1px solid var(--line);border-radius:10px;background:var(--surface2);color:var(--text);font-weight:800}.btn.primary{background:var(--accent);color:#171614;border-color:var(--accent)}
+.toast{position:fixed;left:12px;right:12px;bottom:14px;border:1px solid rgba(74,222,128,.3);border-radius:10px;background:#102017;color:var(--green);padding:11px 12px;text-align:center;font-weight:800}
+@media(min-width:640px){.grid.all{grid-template-columns:1fr 1fr}.wrap{padding-top:28px}.row.full{grid-column:span 2}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="top">
+    <div>
+      <h1>Interencheres</h1>
+      <div class="date" id="date-label">Chargement...</div>
+    </div>
+    <div class="badge" id="today-badge">Aujourd'hui</div>
+  </header>
+
+  <section class="section">
+    <h2>Ventes a faire aujourd'hui</h2>
+    <div class="grid" id="today-list"></div>
+    <div class="hint">Ouvre la salle, attends la liste des lots, puis lance ton bookmarklet Chrome Android.</div>
+  </section>
+
+  <section class="section">
+    <h2>Outils</h2>
+    <div class="tools">
+      <button class="btn primary" type="button" id="copy-bookmarklet">Copier bookmarklet</button>
+      <button class="btn" type="button" id="refresh-day">Recalculer</button>
+    </div>
+    <div class="hint">Si ton token est requis, garde ton favori Android actuel. Ce bouton copie la version sans token.</div>
+  </section>
+
+  <section class="section">
+    <h2>Toutes les salles</h2>
+    <div class="grid all" id="all-list"></div>
+  </section>
+</main>
+<script>
+const rooms=[
+  {name:'Beauvais',day:1,label:'lundi',url:'https://www.interencheres.com/commissaire-priseur/et-alcopa-auction-beauvais-508/'},
+  {name:'Paris Sud',day:1,label:'lundi',url:'https://www.interencheres.com/commissaire-priseur/et-alcopa-auction-paris-sud-131/'},
+  {name:'Rennes',day:1,label:'lundi',url:'https://www.interencheres.com/commissaire-priseur/et-alcopa-auction-rennes-145/'},
+  {name:'Tours',day:5,label:'vendredi',url:'https://www.interencheres.com/commissaire-priseur/et-alcopa-auction-tours-219/'},
+  {name:'Nancy',day:3,label:'mercredi',url:'https://www.interencheres.com/commissaire-priseur/et-alcopa-auction-nancy-420/'},
+  {name:'Marseille',day:5,label:'vendredi',url:'https://www.interencheres.com/commissaire-priseur/et-alcopa-auction-marseille-443/'},
+  {name:'Lyon',day:4,label:'jeudi',url:'https://www.interencheres.com/commissaire-priseur/et-alcopa-auction-lyon-509/'}
+];
+const bookmarklet="javascript:(()=>{let s=document.createElement('script');s.src='https://alcopav2-production.up.railway.app/interencheres/bookmarklet.js';document.body.appendChild(s)})()";
+function frDate(d){return new Intl.DateTimeFormat('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}).format(d)}
+function renderRoom(room,today){
+  const cls=today?'salle today':'salle';
+  return '<div class="row'+(room.name==='Lyon'?' full':'')+'"><a class="'+cls+'" href="'+room.url+'"><span><span class="name">'+room.name+'</span><span class="day">'+room.label+'</span></span><span>'+ (today?'A faire':'Ouvrir') +'</span></a><a class="open" href="'+room.url+'" aria-label="Ouvrir '+room.name+'">›</a></div>';
+}
+function render(){
+  const now=new Date();
+  const day=now.getDay();
+  document.getElementById('date-label').textContent=frDate(now);
+  const today=rooms.filter(r=>r.day===day);
+  document.getElementById('today-badge').textContent=today.length?today.length+' salle'+(today.length>1?'s':''):'Aucune';
+  document.getElementById('today-list').innerHTML=today.length?today.map(r=>renderRoom(r,true)).join(''):'<div class="empty">Aucune salle reguliere aujourd\\'hui. Regarde la liste complete si Alcopa a une vente exceptionnelle.</div>';
+  document.getElementById('all-list').innerHTML=rooms.map(r=>renderRoom(r,r.day===day)).join('');
+}
+document.getElementById('refresh-day').addEventListener('click',render);
+document.getElementById('copy-bookmarklet').addEventListener('click',async()=>{
+  try{await navigator.clipboard.writeText(bookmarklet);toast('Bookmarklet copie');}
+  catch{toast('Copie impossible, utilise ton favori existant');}
+});
+function toast(msg){const old=document.querySelector('.toast');if(old)old.remove();const el=document.createElement('div');el.className='toast';el.textContent=msg;document.body.appendChild(el);setTimeout(()=>el.remove(),2400)}
+render();
+</script>
+</body>
+</html>`;
 }
 
 function readJsonBody(req, maxBytes = MAX_IMPORT_BYTES) {
@@ -637,6 +725,7 @@ const server = http.createServer(async (req, res) => {
         supabase: supabaseEnvStatus(),
         endpoints: {
           analytics: '/analytics/lots-unifies',
+          interencheresToday: '/interencheres/today',
           scrape: '/scrape?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=30',
           enriched: '/scrape?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=1&details=1&detailLimit=3&ocr=1&ocrLimit=1',
           vehicle: '/vehicle?url=https://www.alcopa-auction.fr/voiture-occasion/...&ocr=1',
@@ -646,6 +735,13 @@ const server = http.createServer(async (req, res) => {
           probe: '/probe?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371',
           debug: '/debug?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371',
         },
+      });
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/interencheres/today') {
+      send(res, 200, interencheresTodayPage(), {
+        'content-type': 'text/html; charset=utf-8',
       });
       return;
     }
