@@ -908,7 +908,7 @@ td.vehicle-cell {
       <input class="field" id="supabase-key" placeholder="Anon / publishable key">
       <input class="field" id="supabase-table" value="lots_unifies" placeholder="Vue">
       <button class="side-btn active" id="load-btn" type="button">Charger</button>
-      <div class="note">Vue conseillee : lots_unifies. Lecture seule depuis Supabase REST.</div>
+      <div class="note">Mode conseille : lots_unifies. La page fusionne alcopa_lots + lots cote navigateur pour eviter les timeouts SQL.</div>
     </div>
   </div>
 
@@ -1161,9 +1161,9 @@ function updateFavCount() {
   $('fav-count').textContent = n;
 }
 
-function supabaseUrl(cfg, from, limit) {
+function supabaseUrl(cfg, from, limit, table = cfg.table) {
   const base = cfg.url.endsWith('/rest/v1') ? cfg.url : cfg.url + '/rest/v1';
-  const url = new URL(base + '/' + encodeURIComponent(cfg.table));
+  const url = new URL(base + '/' + encodeURIComponent(table));
   url.searchParams.set('select', '*');
   url.searchParams.set('order', 'date_vente.desc.nullslast,lot_number.asc.nullslast');
   url.searchParams.set('limit', String(limit));
@@ -1171,12 +1171,12 @@ function supabaseUrl(cfg, from, limit) {
   return String(url);
 }
 
-async function fetchLots(cfg) {
+async function fetchTableRows(cfg, table) {
   let from = 0;
   const pageSize = 1000;
   const rows = [];
   while (true) {
-    const response = await fetch(supabaseUrl(cfg, from, pageSize), {
+    const response = await fetch(supabaseUrl(cfg, from, pageSize, table), {
       headers: {
         apikey: cfg.key,
         Authorization: 'Bearer ' + cfg.key,
@@ -1190,7 +1190,67 @@ async function fetchLots(cfg) {
     if (batch.length < pageSize) break;
     from += pageSize;
   }
-  return rows.map(enrichLot);
+  return rows;
+}
+
+function unifiedKey(row) {
+  return text(row.merge_key)
+    || text(row.id)
+    || text(row.url_alcopa)
+    || text(row.url_interencheres)
+    || [row.sale_id, norm(row.salle), row.date_vente, row.lot_number].map(text).join('|');
+}
+
+function normalizeSourceRow(row, sourceTable, sourcePriority) {
+  return {
+    ...row,
+    unified_key: row.unified_key || unifiedKey(row),
+    source_table: row.source_table || sourceTable,
+    source_priority: sourcePriority,
+    source_json: row.source_json || row.raw_json || row,
+    source_updated_at: row.source_updated_at || row.updated_at || row.scraped_at || row.created_at || null
+  };
+}
+
+function mergeUnifiedRows(rows) {
+  const byKey = new Map();
+  for (const row of rows) {
+    const key = row.unified_key || unifiedKey(row);
+    if (!key) continue;
+    const current = byKey.get(key);
+    const currentPriority = num(current?.source_priority);
+    const rowPriority = num(row.source_priority);
+    const currentDate = Date.parse(current?.source_updated_at || '') || 0;
+    const rowDate = Date.parse(row.source_updated_at || '') || 0;
+    if (!current || rowPriority > currentPriority || (rowPriority === currentPriority && rowDate > currentDate)) {
+      byKey.set(key, { ...row, unified_key: key });
+    }
+  }
+  return [...byKey.values()].map(({ source_priority, ...row }) => row);
+}
+
+async function fetchMergedFallback(cfg) {
+  const [alcopaRows, oldRows] = await Promise.all([
+    fetchTableRows(cfg, 'alcopa_lots').then((rows) => rows.map((row) => normalizeSourceRow(row, 'alcopa_lots', 2))),
+    fetchTableRows(cfg, 'lots').then((rows) => rows.map((row) => normalizeSourceRow(row, 'lots', 1)))
+  ]);
+  return mergeUnifiedRows([...oldRows, ...alcopaRows]).map(enrichLot);
+}
+
+async function fetchLots(cfg) {
+  if (cfg.table === 'lots_unifies') {
+    return fetchMergedFallback(cfg);
+  }
+  try {
+    return (await fetchTableRows(cfg, cfg.table)).map(enrichLot);
+  } catch (error) {
+    const message = text(error.message);
+    if (cfg.table === 'lots_unifies' && (message.includes('57014') || message.includes('statement timeout') || message.includes('HTTP 500'))) {
+      toast('Vue lots_unifies trop lente, fallback client alcopa_lots + lots', 'ok');
+      return fetchMergedFallback(cfg);
+    }
+    throw error;
+  }
 }
 
 function asArray(value) {
