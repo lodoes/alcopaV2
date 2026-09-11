@@ -156,6 +156,160 @@ async function handleInterencheresImport(req, res) {
   });
 }
 
+function interencheresBookmarkletScript() {
+  return String.raw`(async () => {
+  const currentScript = document.currentScript;
+  const apiBase = currentScript ? new URL(currentScript.src).origin : '';
+  const apiUrl = apiBase + '/interencheres/import';
+  const token = currentScript ? new URL(currentScript.src).searchParams.get('token') || '' : '';
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const text = (element) => (element?.textContent || '').replace(/\s+/g, ' ').trim();
+  const euro = (value) => {
+    const match = String(value || '').match(/(\d[\d\s\u202f\u00a0]*)\s*€/);
+    return match ? Number(match[1].replace(/[^\d]/g, '')) : null;
+  };
+  const context = (() => {
+    let saleId = '';
+    let salle = '';
+    const saleMatch = location.href.match(/alcopa-auction-([\w-]+)-(\d+)/i);
+    if (saleMatch) {
+      salle = saleMatch[1].replace(/-/g, ' ');
+      saleId = saleMatch[2];
+    }
+    if (!saleId) {
+      const idMatch = location.href.match(/-(\d{5,})(?:[/?#]|$)/);
+      if (idMatch) saleId = idMatch[1];
+    }
+    const houseLink = document.querySelector('a[href*="commissaire-priseur/alcopa-auction"]');
+    if (!salle && houseLink) {
+      const roomMatch = houseLink.href.match(/alcopa-auction-([\w-]+)-\d+/i);
+      if (roomMatch) salle = roomMatch[1].replace(/-/g, ' ');
+    }
+    const bodyMatch = document.body.innerText.match(/ALCOPA\s+AUCTION\s+([A-Z\s-]+)/i);
+    if (!salle && bodyMatch) salle = bodyMatch[1].trim().toLowerCase();
+    return { saleId: saleId || 'unknown', salle };
+  })();
+  const now = new Date();
+  const dateVente = String(now.getDate()).padStart(2, '0') + '/'
+    + String(now.getMonth() + 1).padStart(2, '0') + '/'
+    + now.getFullYear();
+  function parseLot(card) {
+    let lotNumber = Number.parseInt(text(card.querySelector('.text-body-2.font-italic span,[class*=font-italic].text-body-2 span')), 10);
+    if (!lotNumber) {
+      const match = text(card).match(/\bLot\s+(\d+)\b/i);
+      if (match) lotNumber = Number.parseInt(match[1], 10);
+    }
+    if (!lotNumber) return null;
+    const title = text(card.querySelector('[class*="min-h-44"] > div'));
+    const bidText = text(card.querySelector('.item-card-bid-info'));
+    const allText = text(card).toLowerCase();
+    let statut = 'inconnu';
+    let price = null;
+    if (/adjug/.test(allText)) {
+      statut = 'adjuge';
+      price = euro(bidText || allText);
+    } else if (/invendu|non adjug/.test(allText)) {
+      statut = 'invendu';
+    } else if (/retir/.test(allText)) {
+      statut = 'retire';
+    } else if (/estimation|ench/.test(allText)) {
+      statut = 'en_cours';
+    }
+    const canal = /en salle/.test(allText)
+      ? 'salle'
+      : /interencheres|internet|en ligne/.test(allText)
+        ? 'internet'
+        : '';
+    const href = card.href || '';
+    const lotId = (href.match(/lot-(\d+)\.html/i) || [])[1] || card.id || '';
+    return {
+      lot_number: lotNumber,
+      lot_interencheres_id: lotId,
+      sale_id: context.saleId,
+      salle: context.salle,
+      date_vente: dateVente,
+      description: title,
+      prix_adjudication_eur: price,
+      statut,
+      canal,
+      url_interencheres: href.split('?')[0],
+      scraped_at: new Date().toISOString(),
+    };
+  }
+  function scrapePage() {
+    return [...document.querySelectorAll('a[href*="/lot-"][id],a[href*="/lot-"]')]
+      .map(parseLot)
+      .filter(Boolean);
+  }
+  function totalPages() {
+    return Math.max(1, ...[...document.querySelectorAll('.v-pagination__item,button.v-pagination__item')]
+      .map((item) => Number.parseInt(text(item), 10))
+      .filter(Boolean));
+  }
+  function nextButton() {
+    const buttons = [...document.querySelectorAll('button[aria-label*="suiv" i],button[aria-label*="next" i],.v-pagination__navigation')];
+    return buttons.find((button) => !button.disabled && !button.classList.contains('v-pagination__navigation--disabled'));
+  }
+  async function waitForChange(previousKey) {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < 8000) {
+      const first = document.querySelector('a[href*="/lot-"][id],a[href*="/lot-"]');
+      const key = first ? first.id || first.href : '';
+      if (key && key !== previousKey) return true;
+      await sleep(300);
+    }
+    return false;
+  }
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:2147483647;padding:14px 22px;border-radius:8px;background:#1d4ed8;color:white;font:600 14px sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.35)';
+  document.body.appendChild(box);
+  try {
+    let lots = [];
+    const pages = totalPages();
+    for (let page = 1; page <= pages; page += 1) {
+      box.textContent = 'Import IE page ' + page + '/' + pages;
+      lots = lots.concat(scrapePage());
+      if (page >= pages) break;
+      const first = document.querySelector('a[href*="/lot-"][id],a[href*="/lot-"]');
+      const previousKey = first ? first.id || first.href : '';
+      const button = nextButton();
+      if (!button) break;
+      button.click();
+      await waitForChange(previousKey);
+      await sleep(600);
+    }
+    const unique = Object.values(Object.fromEntries(
+      lots.map((lot) => [lot.lot_number + '-' + lot.lot_interencheres_id, lot]),
+    ));
+    if (!unique.length) throw new Error('Aucun lot trouve sur cette page Interencheres.');
+    box.textContent = 'Envoi ' + unique.length + ' lots...';
+    const headers = { 'content-type': 'application/json' };
+    if (token) headers['x-import-token'] = token;
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        source: 'bookmarklet-android-loader',
+        pageUrl: location.href,
+        saleId: context.saleId,
+        salle: context.salle,
+        date_vente: dateVente,
+        lots: unique,
+      }),
+    });
+    const resultText = await response.text();
+    box.style.background = response.ok ? '#059669' : '#dc2626';
+    box.textContent = response.ok ? 'Import OK: ' + unique.length + ' lots' : 'Erreur import ' + response.status;
+    alert(resultText.slice(0, 1200));
+  } catch (error) {
+    box.style.background = '#dc2626';
+    box.textContent = 'Erreur: ' + error.message;
+    alert(error.message);
+  }
+  setTimeout(() => box.remove(), 10000);
+})();`;
+}
+
 function parsePositiveInt(value, fallback) {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? Math.floor(number) : fallback;
@@ -357,6 +511,7 @@ const server = http.createServer(async (req, res) => {
           enriched: '/scrape?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=1&details=1&detailLimit=3&ocr=1&ocrLimit=1',
           vehicle: '/vehicle?url=https://www.alcopa-auction.fr/voiture-occasion/...&ocr=1',
           interencheresImport: 'POST /interencheres/import',
+          interencheresBookmarklet: '/interencheres/bookmarklet.js',
           csv: '/scrape?format=csv&url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=30',
           probe: '/probe?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371',
           debug: '/debug?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371',
@@ -377,6 +532,13 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/debug') {
       await handleDebug(res, url);
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/interencheres/bookmarklet.js') {
+      send(res, 200, interencheresBookmarkletScript(), {
+        'content-type': 'application/javascript; charset=utf-8',
+      });
       return;
     }
 
