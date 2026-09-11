@@ -164,6 +164,7 @@ function interencheresBookmarkletScript() {
   const token = currentScript ? new URL(currentScript.src).searchParams.get('token') || '' : '';
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const text = (element) => (element?.textContent || '').replace(/\s+/g, ' ').trim();
+  const normalize = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const euro = (value) => {
     const match = String(value || '').match(/(\d[\d\s\u202f\u00a0]*)\s*€/);
     return match ? Number(match[1].replace(/[^\d]/g, '')) : null;
@@ -236,6 +237,82 @@ function interencheresBookmarkletScript() {
       scraped_at: new Date().toISOString(),
     };
   }
+  function saleBaseUrl() {
+    const url = new URL(location.href);
+    url.search = '';
+    url.hash = '';
+    url.pathname = url.pathname.replace(/\/lot-\d+\.html$/i, '').replace(/\/$/, '');
+    return url.href;
+  }
+  function itemUrl(itemId) {
+    return saleBaseUrl() + '/lot-' + itemId + '.html';
+  }
+  function parseApiItem(item) {
+    const itemId = Number(item?.id);
+    const lotNumber = Number(item?.meta?.order_number?.primary);
+    if (!Number.isFinite(itemId) || !Number.isFinite(lotNumber)) return null;
+    const auctioned = item?.pricing?.auctioned || {};
+    let statut = 'inconnu';
+    let price = null;
+    if (item?.states?.suppressed === true) {
+      statut = 'retire';
+    } else if (auctioned.sold === true) {
+      statut = 'adjuge';
+      const value = Number(auctioned.price);
+      price = Number.isFinite(value) ? value : null;
+    } else if (auctioned.sold === false) {
+      statut = 'invendu';
+    } else if (item?.states?.ended === false || item?.states?.closed === false) {
+      statut = 'en_cours';
+    }
+    const auctionType = normalize((auctioned.type || '') + ' ' + (auctioned.site || ''));
+    const canal = /live|online|interencheres/.test(auctionType)
+      ? 'internet'
+      : /physical|salle/.test(auctionType)
+        ? 'salle'
+        : '';
+    return {
+      lot_number: lotNumber,
+      lot_interencheres_id: String(itemId),
+      sale_id: context.saleId,
+      salle: context.salle,
+      date_vente: dateVente,
+      description: text({ textContent: item?.title_translations?.['fr-FR'] || item?.title_translations?.['en-US'] || item?.description || '' }),
+      prix_adjudication_eur: price,
+      statut,
+      canal,
+      url_interencheres: itemUrl(itemId),
+      scraped_at: new Date().toISOString(),
+    };
+  }
+  async function fetchApiLots() {
+    if (!/^\d+$/.test(context.saleId)) throw new Error('ID vente Interencheres introuvable pour API.');
+    const pageSize = 200;
+    const maxPages = 20;
+    const lots = [];
+    for (let page = 0; page < maxPages; page += 1) {
+      const start = page * pageSize;
+      const end = start + pageSize - 1;
+      box.textContent = 'API Interencheres ' + start + '-' + end;
+      const url = 'https://search.interencheres.com/v1/search/ie4_items?filters%5Bsale%5D=' + encodeURIComponent(context.saleId);
+      const response = await fetch(url, {
+        credentials: 'include',
+        headers: {
+          accept: 'application/json, text/plain, */*',
+          'x-range': 'items=' + start + '-' + end,
+          'x-requested-with': 'XMLHttpRequest',
+        },
+      });
+      const raw = await response.text();
+      if (!response.ok) throw new Error('API Interencheres HTTP ' + response.status + ': ' + raw.slice(0, 160));
+      const payload = JSON.parse(raw);
+      if (!Array.isArray(payload)) throw new Error('Reponse API Interencheres invalide.');
+      lots.push(...payload.map(parseApiItem).filter(Boolean));
+      if (payload.length < pageSize) break;
+      await sleep(250);
+    }
+    return lots;
+  }
   function scrapePage() {
     return [...document.querySelectorAll('a[href*="/lot-"][id],a[href*="/lot-"]')]
       .map(parseLot)
@@ -272,18 +349,26 @@ function interencheresBookmarkletScript() {
   document.body.appendChild(box);
   try {
     let lots = [];
-    const pages = totalPages();
-    for (let page = 1; page <= pages; page += 1) {
-      box.textContent = 'Import IE page ' + page + '/' + pages;
-      lots = lots.concat(scrapePage());
-      if (page >= pages) break;
-      const first = document.querySelector('a[href*="/lot-"][id],a[href*="/lot-"]');
-      const previousKey = first ? first.id || first.href : '';
-      const button = nextButton();
-      if (!button) break;
-      button.click();
-      await waitForChange(previousKey);
-      await sleep(600);
+    let source = 'api';
+    try {
+      lots = await fetchApiLots();
+    } catch (apiError) {
+      source = 'dom';
+      box.textContent = 'API KO, fallback DOM...';
+      await sleep(900);
+      const pages = totalPages();
+      for (let page = 1; page <= pages; page += 1) {
+        box.textContent = 'Import IE page ' + page + '/' + pages;
+        lots = lots.concat(scrapePage());
+        if (page >= pages) break;
+        const first = document.querySelector('a[href*="/lot-"][id],a[href*="/lot-"]');
+        const previousKey = first ? first.id || first.href : '';
+        const button = nextButton();
+        if (!button) break;
+        button.click();
+        await waitForChange(previousKey);
+        await sleep(600);
+      }
     }
     const unique = Object.values(Object.fromEntries(
       lots.map((lot) => [lot.lot_number + '-' + lot.lot_interencheres_id, lot]),
@@ -296,7 +381,7 @@ function interencheresBookmarkletScript() {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        source: 'bookmarklet-android-loader',
+        source: 'bookmarklet-android-' + source,
         pageUrl: location.href,
         saleId: context.saleId,
         salle: context.salle,
