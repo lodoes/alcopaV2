@@ -10,6 +10,13 @@ import {
   scrape,
   toCsv,
 } from './scrape-alcopa.mjs';
+import {
+  matchInterencheresSales,
+  normalizeRoom,
+  parseFrenchDate,
+} from './interencheres.mjs';
+import { buildUpdates, groupLocalSales } from './interencheres-cron.mjs';
+import { createSupabaseStore } from './supabase-store.mjs';
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -22,17 +29,131 @@ const MAX_DETAIL_LIMIT = Number(process.env.MAX_DETAIL_LIMIT || 500);
 const DEFAULT_OCR_LIMIT = Number(process.env.DEFAULT_OCR_LIMIT || 3);
 const MAX_OCR_LIMIT = Number(process.env.MAX_OCR_LIMIT || 500);
 const DEFAULT_DETAIL_DELAY_MS = Number(process.env.DEFAULT_DETAIL_DELAY_MS || 500);
+const MAX_IMPORT_BYTES = Math.max(10_000, Number(process.env.MAX_IMPORT_BYTES || 2_000_000));
 
 function send(res, status, body, headers = {}) {
   const isBuffer = Buffer.isBuffer(body);
   const payload = isBuffer || typeof body === 'string' ? body : JSON.stringify(body, null, 2);
   res.writeHead(status, {
     'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET,POST,OPTIONS',
+    'access-control-allow-headers': 'content-type,x-import-token',
     'cache-control': 'no-store',
     'content-type': isBuffer ? 'application/octet-stream' : 'application/json; charset=utf-8',
     ...headers,
   });
   res.end(payload);
+}
+
+function readJsonBody(req, maxBytes = MAX_IMPORT_BYTES) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > maxBytes) {
+        reject(new Error(`Payload trop volumineux (${size} octets)`));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('error', reject);
+    req.on('end', () => {
+      try {
+        const text = Buffer.concat(chunks).toString('utf8');
+        resolve(text ? JSON.parse(text) : {});
+      } catch (error) {
+        reject(new Error(`JSON invalide: ${error.message}`));
+      }
+    });
+  });
+}
+
+function cleanText(value = '') {
+  return String(value).replace(/\u00a0|\u202f/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function normalizeBookmarkletDate(value = '') {
+  const parsed = parseFrenchDate(value);
+  if (parsed) return parsed;
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+}
+
+function normalizeImportedLots(items, pageUrl) {
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => ({
+    lot_number: Number(item.lot_number),
+    salle: cleanText(item.salle || ''),
+    date_vente: cleanText(item.date_vente || ''),
+    lot_interencheres_id: String(item.lot_interencheres_id || '').trim() || null,
+    description: cleanText(item.description || item.marque || ''),
+    prix_adjudication_eur: Number.isFinite(Number(item.prix_adjudication_eur))
+      ? Number(item.prix_adjudication_eur)
+      : null,
+    statut: cleanText(item.statut || 'inconnu'),
+    canal: cleanText(item.canal || '') || null,
+    url_interencheres: cleanText(item.url_interencheres || pageUrl || ''),
+  })).filter((lot) => Number.isFinite(lot.lot_number));
+}
+
+async function handleInterencheresImport(req, res) {
+  const body = await readJsonBody(req);
+  const expectedToken = String(process.env.IE_IMPORT_TOKEN || '').trim();
+  const providedToken = String(req.headers['x-import-token'] || body.token || '').trim();
+  if (expectedToken && providedToken !== expectedToken) {
+    send(res, 401, { ok: false, error: 'Token import Interencheres invalide.' });
+    return;
+  }
+
+  const lots = normalizeImportedLots(body.lots || body.items || body.data, body.pageUrl);
+  if (!lots.length) {
+    send(res, 400, { ok: false, error: 'Aucun lot Interencheres valide dans le payload.' });
+    return;
+  }
+
+  const saleDate = normalizeBookmarkletDate(body.date_vente || body.dateVente || lots[0]?.date_vente);
+  const room = normalizeRoom(body.salle || body.room || lots[0]?.salle || '');
+  if (!room) {
+    send(res, 400, { ok: false, error: 'Salle Interencheres introuvable dans le payload.' });
+    return;
+  }
+
+  const store = createSupabaseStore();
+  if (!store) {
+    send(res, 500, { ok: false, error: 'Configure SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.' });
+    return;
+  }
+
+  const localLots = await store.selectLotsByDate(saleDate);
+  const localSales = groupLocalSales(localLots)
+    .filter((sale) => normalizeRoom(sale.salle) === room);
+  const ieSale = {
+    url: cleanText(body.pageUrl || ''),
+    metadata: {
+      event_id: String(body.saleId || body.sale_id || ''),
+      room,
+      date: saleDate,
+    },
+    lots,
+  };
+  const matches = matchInterencheresSales(localSales, [ieSale]);
+  const { updates, stats } = buildUpdates(matches);
+  const saved = await store.updateInterencheresLots(updates);
+
+  send(res, 200, {
+    ok: matches.length > 0,
+    source: body.source || 'bookmarklet',
+    room,
+    saleDate,
+    importedLots: lots.length,
+    localSales: localSales.length,
+    matchedSales: matches.length,
+    updates: updates.length,
+    saved,
+    ...stats,
+  });
 }
 
 function parsePositiveInt(value, fallback) {
@@ -235,6 +356,7 @@ const server = http.createServer(async (req, res) => {
           scrape: '/scrape?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=30',
           enriched: '/scrape?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=1&details=1&detailLimit=3&ocr=1&ocrLimit=1',
           vehicle: '/vehicle?url=https://www.alcopa-auction.fr/voiture-occasion/...&ocr=1',
+          interencheresImport: 'POST /interencheres/import',
           csv: '/scrape?format=csv&url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=30',
           probe: '/probe?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371',
           debug: '/debug?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371',
@@ -260,6 +382,11 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/probe') {
       await handleProbe(res, url);
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/interencheres/import') {
+      await handleInterencheresImport(req, res);
       return;
     }
 
