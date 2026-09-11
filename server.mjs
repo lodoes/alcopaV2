@@ -247,8 +247,15 @@ function interencheresBookmarkletScript() {
       .filter(Boolean));
   }
   function nextButton() {
-    const buttons = [...document.querySelectorAll('button[aria-label*="suiv" i],button[aria-label*="next" i],.v-pagination__navigation')];
-    return buttons.find((button) => !button.disabled && !button.classList.contains('v-pagination__navigation--disabled'));
+    const explicitNext = [...document.querySelectorAll('button[aria-label*="suiv" i],button[aria-label*="next" i]')]
+      .find((button) => !button.disabled && !button.classList.contains('v-pagination__navigation--disabled'));
+    if (explicitNext) return explicitNext;
+    const navs = [...document.querySelectorAll('.v-pagination__navigation, .v-pagination li button')];
+    for (let index = navs.length - 1; index >= 0; index -= 1) {
+      const button = navs[index];
+      if (!button.disabled && !button.classList.contains('v-pagination__navigation--disabled')) return button;
+    }
+    return null;
   }
   async function waitForChange(previousKey) {
     const startedAt = Date.now();
