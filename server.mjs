@@ -21,7 +21,7 @@ import { createSupabaseStore } from './supabase-store.mjs';
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
-const APP_VERSION = '2026-09-11-interencheres-today-v1';
+const APP_VERSION = '2026-09-11-interencheres-autobutton-v1';
 const DEFAULT_MAX_PAGES = Number(process.env.DEFAULT_MAX_PAGES || 30);
 const MAX_ALLOWED_PAGES = Number(process.env.MAX_ALLOWED_PAGES || 40);
 const DEFAULT_DELAY_MS = Number(process.env.DEFAULT_DELAY_MS || 350);
@@ -93,7 +93,7 @@ h1{margin:0;font-size:24px;line-height:1.1}.date{color:var(--muted);font-size:13
 .grid{display:grid;gap:9px}.row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:stretch}.salle{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:56px;border:1px solid var(--line);border-radius:10px;background:var(--surface2);color:var(--text);padding:10px 12px;text-decoration:none}
 .salle.today{border-color:rgba(74,222,128,.38);box-shadow:0 0 0 1px rgba(74,222,128,.12) inset}.name{font-size:17px;font-weight:850}.day{display:block;margin-top:3px;color:var(--muted);font-size:12px}.hint{color:var(--muted);font-size:12px;line-height:1.45;margin-top:10px}
 .open{min-width:48px;border:1px solid var(--line);border-radius:10px;background:var(--accent);color:#171614;font-size:18px;font-weight:900;text-decoration:none;display:grid;place-items:center}.open:active,.salle:active{transform:translateY(1px)}
-.empty{border:1px dashed var(--line);border-radius:10px;padding:18px;color:var(--muted);text-align:center}.tools{display:grid;grid-template-columns:1fr 1fr;gap:8px}.btn{min-height:42px;border:1px solid var(--line);border-radius:10px;background:var(--surface2);color:var(--text);font-weight:800}.btn.primary{background:var(--accent);color:#171614;border-color:var(--accent)}
+.empty{border:1px dashed var(--line);border-radius:10px;padding:18px;color:var(--muted);text-align:center}.tools{display:grid;grid-template-columns:1fr 1fr;gap:8px}.btn{min-height:42px;border:1px solid var(--line);border-radius:10px;background:var(--surface2);color:var(--text);font-weight:800;text-decoration:none;display:grid;place-items:center;text-align:center}.btn.primary{background:var(--accent);color:#171614;border-color:var(--accent)}
 .toast{position:fixed;left:12px;right:12px;bottom:14px;border:1px solid rgba(74,222,128,.3);border-radius:10px;background:#102017;color:var(--green);padding:11px 12px;text-align:center;font-weight:800}
 @media(min-width:640px){.grid.all{grid-template-columns:1fr 1fr}.wrap{padding-top:28px}.row.full{grid-column:span 2}}
 </style>
@@ -117,10 +117,10 @@ h1{margin:0;font-size:24px;line-height:1.1}.date{color:var(--muted);font-size:13
   <section class="section">
     <h2>Outils</h2>
     <div class="tools">
-      <button class="btn primary" type="button" id="copy-bookmarklet">Copier bookmarklet</button>
+      <a class="btn primary" href="/interencheres/autoscript.user.js">Installer bouton</a>
       <button class="btn" type="button" id="refresh-day">Recalculer</button>
     </div>
-    <div class="hint">Si ton token est requis, garde ton favori Android actuel. Ce bouton copie la version sans token.</div>
+    <div class="hint">Avec Kiwi Browser + Tampermonkey : installe une fois, puis un bouton Import IE apparait directement sur Interencheres.</div>
   </section>
 
   <section class="section">
@@ -138,11 +138,11 @@ const rooms=[
   {name:'Marseille',day:5,label:'vendredi',url:'https://www.interencheres.com/commissaire-priseur/et-alcopa-auction-marseille-443/'},
   {name:'Lyon',day:4,label:'jeudi',url:'https://www.interencheres.com/commissaire-priseur/et-alcopa-auction-lyon-509/'}
 ];
-const bookmarklet="javascript:(()=>{let s=document.createElement('script');s.src='https://alcopav2-production.up.railway.app/interencheres/bookmarklet.js';document.body.appendChild(s)})()";
 function frDate(d){return new Intl.DateTimeFormat('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}).format(d)}
 function renderRoom(room,today){
   const cls=today?'salle today':'salle';
-  return '<div class="row'+(room.name==='Lyon'?' full':'')+'"><a class="'+cls+'" href="'+room.url+'"><span><span class="name">'+room.name+'</span><span class="day">'+room.label+'</span></span><span>'+ (today?'A faire':'Ouvrir') +'</span></a><a class="open" href="'+room.url+'" aria-label="Ouvrir '+room.name+'">›</a></div>';
+  const href=room.url+'?alcopaImport=1';
+  return '<div class="row'+(room.name==='Lyon'?' full':'')+'"><a class="'+cls+'" href="'+href+'"><span><span class="name">'+room.name+'</span><span class="day">'+room.label+'</span></span><span>'+ (today?'A faire':'Ouvrir') +'</span></a><a class="open" href="'+href+'" aria-label="Ouvrir '+room.name+'">›</a></div>';
 }
 function render(){
   const now=new Date();
@@ -154,15 +154,108 @@ function render(){
   document.getElementById('all-list').innerHTML=rooms.map(r=>renderRoom(r,r.day===day)).join('');
 }
 document.getElementById('refresh-day').addEventListener('click',render);
-document.getElementById('copy-bookmarklet').addEventListener('click',async()=>{
-  try{await navigator.clipboard.writeText(bookmarklet);toast('Bookmarklet copie');}
-  catch{toast('Copie impossible, utilise ton favori existant');}
-});
 function toast(msg){const old=document.querySelector('.toast');if(old)old.remove();const el=document.createElement('div');el.className='toast';el.textContent=msg;document.body.appendChild(el);setTimeout(()=>el.remove(),2400)}
 render();
 </script>
 </body>
 </html>`;
+}
+
+function interencheresAutoButtonUserScript() {
+  return `// ==UserScript==
+// @name         Alcopa Interencheres Import Button
+// @namespace    https://alcopav2-production.up.railway.app/
+// @version      2026-09-11
+// @description  Ajoute un bouton Import IE sur les pages Interencheres Alcopa.
+// @match        https://www.interencheres.com/*
+// @match        https://interencheres.com/*
+// @run-at       document-idle
+// @grant        none
+// ==/UserScript==
+
+(function () {
+  'use strict';
+  const SCRIPT_URL = 'https://alcopav2-production.up.railway.app/interencheres/bookmarklet.js';
+  const KEY = 'alcopaIeLastRun:' + location.pathname;
+
+  function isAlcopaPage() {
+    const path = location.pathname.toLowerCase();
+    const body = (document.body && document.body.innerText || '').toLowerCase();
+    return path.includes('alcopa') || body.includes('alcopa auction');
+  }
+
+  function toast(message, tone) {
+    const old = document.getElementById('alcopa-ie-toast');
+    if (old) old.remove();
+    const box = document.createElement('div');
+    box.id = 'alcopa-ie-toast';
+    box.textContent = message;
+    box.style.cssText = [
+      'position:fixed',
+      'left:14px',
+      'right:14px',
+      'bottom:86px',
+      'z-index:2147483647',
+      'padding:12px 14px',
+      'border-radius:12px',
+      'font:700 14px system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif',
+      'text-align:center',
+      'color:' + (tone === 'error' ? '#fecaca' : '#dcfce7'),
+      'background:' + (tone === 'error' ? '#450a0a' : '#052e16'),
+      'box-shadow:0 14px 40px rgba(0,0,0,.35)'
+    ].join(';');
+    document.body.appendChild(box);
+    setTimeout(() => box.remove(), 2400);
+  }
+
+  function runImport() {
+    if (document.querySelector('script[data-alcopa-ie-bookmarklet]')) {
+      toast('Import deja lance sur cette page');
+      return;
+    }
+    sessionStorage.setItem(KEY, String(Date.now()));
+    const script = document.createElement('script');
+    script.src = SCRIPT_URL + '?t=' + Date.now();
+    script.dataset.alcopaIeBookmarklet = '1';
+    script.onload = () => toast('Import IE lance');
+    script.onerror = () => toast('Impossible de charger le script', 'error');
+    document.body.appendChild(script);
+  }
+
+  function addButton() {
+    if (!document.body || document.getElementById('alcopa-ie-import-btn')) return;
+    if (!isAlcopaPage()) return;
+    const button = document.createElement('button');
+    button.id = 'alcopa-ie-import-btn';
+    button.type = 'button';
+    button.textContent = 'Import IE';
+    button.style.cssText = [
+      'position:fixed',
+      'right:14px',
+      'bottom:22px',
+      'z-index:2147483647',
+      'min-width:118px',
+      'height:52px',
+      'border:0',
+      'border-radius:999px',
+      'background:#e8a44a',
+      'color:#171614',
+      'box-shadow:0 14px 44px rgba(0,0,0,.42)',
+      'font:900 15px system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif'
+    ].join(';');
+    button.addEventListener('click', runImport);
+    document.body.appendChild(button);
+
+    const params = new URLSearchParams(location.search);
+    if (params.get('alcopaImport') === '1') {
+      const last = Number(sessionStorage.getItem(KEY) || 0);
+      if (Date.now() - last > 30000) setTimeout(runImport, 1200);
+    }
+  }
+
+  addButton();
+  new MutationObserver(addButton).observe(document.documentElement, { childList: true, subtree: true });
+})();`;
 }
 
 function readJsonBody(req, maxBytes = MAX_IMPORT_BYTES) {
@@ -726,6 +819,7 @@ const server = http.createServer(async (req, res) => {
         endpoints: {
           analytics: '/analytics/lots-unifies',
           interencheresToday: '/interencheres/today',
+          interencheresAutoButton: '/interencheres/autoscript.user.js',
           scrape: '/scrape?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=30',
           enriched: '/scrape?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=1&details=1&detailLimit=3&ocr=1&ocrLimit=1',
           vehicle: '/vehicle?url=https://www.alcopa-auction.fr/voiture-occasion/...&ocr=1',
@@ -742,6 +836,13 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/interencheres/today') {
       send(res, 200, interencheresTodayPage(), {
         'content-type': 'text/html; charset=utf-8',
+      });
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/interencheres/autoscript.user.js') {
+      send(res, 200, interencheresAutoButtonUserScript(), {
+        'content-type': 'application/javascript; charset=utf-8',
       });
       return;
     }
