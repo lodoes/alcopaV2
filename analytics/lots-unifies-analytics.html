@@ -3,219 +3,571 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lots Unifies Analytics</title>
+<title>AutoLot Unifie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #f5f7fb;
-  --surface: #ffffff;
-  --surface-2: #eef3f8;
-  --line: #d9e1ea;
-  --text: #172033;
-  --muted: #64748b;
-  --blue: #2563eb;
-  --teal: #0f766e;
-  --amber: #b45309;
-  --red: #dc2626;
-  --green: #15803d;
-  --violet: #6d28d9;
-  --shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  --bg: #0f0e0d;
+  --surface: #171614;
+  --surface2: #1e1c1a;
+  --surface3: #252220;
+  --border: rgba(255,240,220,0.07);
+  --border2: rgba(255,240,220,0.14);
+  --text: #f0ebe4;
+  --text2: #8c8278;
+  --text3: #56504a;
+  --accent: #e8a44a;
+  --accent-dim: rgba(232,164,74,0.12);
+  --green: #4ade80;
+  --green-dim: rgba(74,222,128,0.1);
+  --red: #f87171;
+  --red-dim: rgba(248,113,113,0.1);
+  --yellow: #fbbf24;
+  --yellow-dim: rgba(251,191,36,0.1);
+  --blue: #60a5fa;
+  --blue-dim: rgba(96,165,250,0.1);
+  --purple: #c084fc;
+  --purple-dim: rgba(192,132,252,0.1);
+  --serif: "Playfair Display", Georgia, serif;
+  --sans: "Outfit", system-ui, sans-serif;
+  --mono: "JetBrains Mono", monospace;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 18px;
+  --side: 220px;
 }
-* { box-sizing: border-box; }
+body.light {
+  --bg: #faf8f5;
+  --surface: #ffffff;
+  --surface2: #f3f0eb;
+  --surface3: #ebe7e0;
+  --border: rgba(0,0,0,0.08);
+  --border2: rgba(0,0,0,0.15);
+  --text: #1a1714;
+  --text2: #6b6460;
+  --text3: #a09890;
+  --accent: #c47d1a;
+  --accent-dim: rgba(196,125,26,0.11);
+  --green: #16a34a;
+  --green-dim: rgba(22,163,74,0.09);
+  --red: #dc2626;
+  --red-dim: rgba(220,38,38,0.08);
+  --yellow: #d97706;
+  --yellow-dim: rgba(217,119,6,0.09);
+  --blue: #2563eb;
+  --blue-dim: rgba(37,99,235,0.09);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
 body {
-  margin: 0;
+  min-height: 100vh;
   background: var(--bg);
   color: var(--text);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
 }
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.018'/%3E%3C/svg%3E");
+}
+body.light::after { display: none; }
 button, input, select { font: inherit; }
-.app {
-  display: grid;
-  grid-template-columns: 290px minmax(0, 1fr);
-  min-height: 100vh;
-}
+button { -webkit-tap-highlight-color: transparent; }
 .sidebar {
-  position: sticky;
+  position: fixed;
+  left: 0;
   top: 0;
-  height: 100vh;
+  bottom: 0;
+  width: var(--side);
+  z-index: 180;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
   overflow: auto;
-  padding: 18px;
-  border-right: 1px solid var(--line);
-  background: #101827;
-  color: #f8fafc;
 }
-.brand {
+.sidebar-logo {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 18px;
+  min-height: 36px;
 }
-.brand-mark {
-  width: 38px;
-  height: 38px;
+.logo-mark {
+  width: 32px;
+  height: 32px;
   border-radius: 8px;
   display: grid;
   place-items: center;
-  background: #2563eb;
-  font-weight: 800;
+  background: var(--accent);
+  color: #171614;
+  font: 700 16px var(--serif);
 }
-.brand h1 {
-  margin: 0;
-  font-size: 18px;
-  line-height: 1.1;
+.logo-text {
+  color: var(--text);
+  font: 600 17px var(--serif);
 }
-.brand p {
-  margin: 3px 0 0;
-  color: #94a3b8;
-  font-size: 12px;
-}
-.side-section {
-  padding: 14px 0;
-  border-top: 1px solid rgba(148, 163, 184, 0.2);
-}
-.side-title {
-  margin: 0 0 10px;
-  color: #94a3b8;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+.logo-text span { color: var(--accent); }
+.section-label {
+  margin: 10px 0 8px;
+  color: var(--text3);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
-.stack { display: grid; gap: 9px; }
-.row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.field, .select {
+.side-btn, .chip, .sort-btn, .icon-btn, .modal-btn, .small-btn {
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface2);
+  color: var(--text2);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s, transform 0.15s;
+}
+.side-btn {
   width: 100%;
   min-height: 38px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  border-radius: 7px;
-  background: #0b1220;
-  color: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 11px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.side-btn:hover, .chip:hover, .sort-btn:hover, .icon-btn:hover, .modal-btn:hover, .small-btn:hover {
+  color: var(--text);
+  border-color: var(--border2);
+}
+.side-btn.active, .chip.active, .sort-btn.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: rgba(232,164,74,0.35);
+}
+.badge-count {
+  min-width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 99px;
+  padding: 0 5px;
+  background: var(--accent);
+  color: #171614;
+  font-size: 10px;
+  font-weight: 800;
+}
+.field, .select {
+  width: 100%;
+  min-height: 35px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface2);
+  color: var(--text);
   padding: 8px 10px;
   outline: none;
+  font-size: 12px;
 }
-.field::placeholder { color: #75829a; }
-.select { cursor: pointer; }
-.btn {
-  min-height: 38px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  border-radius: 7px;
-  padding: 8px 10px;
-  background: #182235;
-  color: #f8fafc;
-  cursor: pointer;
-  font-weight: 700;
+.field:focus, .select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
 }
-.btn:hover { border-color: #93c5fd; }
-.btn.primary {
-  background: var(--blue);
-  border-color: var(--blue);
+.field::placeholder { color: var(--text3); }
+.stack { display: grid; gap: 8px; }
+.side-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  min-height: 30px;
+  padding: 6px 9px;
+  font-size: 11px;
+  font-weight: 600;
 }
-.btn.light {
-  background: #ffffff;
-  color: var(--text);
-  border-color: var(--line);
+.sort-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.sort-btn {
+  min-height: 32px;
+  padding: 7px;
+  font-size: 11px;
+  font-weight: 600;
 }
 .note {
-  color: #94a3b8;
-  font-size: 12px;
-  line-height: 1.45;
+  color: var(--text3);
+  font-size: 10px;
+  line-height: 1.5;
 }
-.main {
-  padding: 22px;
-  min-width: 0;
-}
-.topbar {
+.sidebar-footer {
+  margin-top: auto;
   display: flex;
-  align-items: flex-start;
+  gap: 7px;
+}
+.sidebar-footer .side-btn {
+  justify-content: center;
+}
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 110;
+  margin-left: var(--side);
+  background: rgba(15,14,13,0.88);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(24px) saturate(1.3);
+}
+body.light .header { background: rgba(250,248,245,0.96); }
+.header-inner {
+  height: 58px;
+  display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 16px;
+  padding: 0 20px;
 }
-.title h2 {
-  margin: 0;
-  font-size: 26px;
-  line-height: 1.1;
-}
-.title p {
-  margin: 7px 0 0;
-  color: var(--muted);
-  font-size: 14px;
-}
-.statusbar {
+.mobile-menu { display: none; }
+.header-stats {
   display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-end;
 }
-.pill {
-  min-height: 30px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--muted);
-  padding: 6px 10px;
-  font-size: 12px;
-  font-weight: 700;
+.hstat {
+  min-width: 52px;
+  padding: 5px 9px;
+  border-radius: var(--r-sm);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  text-align: center;
 }
-.kpis {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(135px, 1fr));
-  gap: 10px;
-  margin-bottom: 12px;
+.hstat-val {
+  color: var(--text);
+  font: 600 14px var(--serif);
+  line-height: 1;
 }
-.kpi, .panel, .table-panel {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  box-shadow: var(--shadow);
-}
-.kpi { padding: 12px; min-height: 98px; }
-.kpi-label {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 800;
+.hstat-lbl {
+  margin-top: 3px;
+  color: var(--text3);
+  font-size: 8px;
+  font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
-.kpi-value {
-  margin-top: 8px;
-  font-size: 25px;
-  font-weight: 850;
-  line-height: 1.1;
+.header-actions { display: flex; align-items: center; gap: 6px; }
+.icon-btn {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
 }
-.kpi-sub {
-  margin-top: 6px;
-  color: var(--muted);
-  font-size: 12px;
+.tabs {
+  margin-left: var(--side);
+  display: flex;
+  gap: 4px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.tab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text3);
+  padding: 11px 18px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+.tab:hover { color: var(--text2); }
+.tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.filterbar {
+  position: sticky;
+  top: 58px;
+  z-index: 90;
+  margin-left: var(--side);
+  padding: 11px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.search-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface2);
+}
+.search-icon {
+  color: var(--text3);
+  font-size: 20px;
+  line-height: 1;
+}
+.search-input {
+  min-width: 120px;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+}
+.search-input::placeholder { color: var(--text3); }
+.main {
+  margin-left: var(--side);
+  padding: 16px 20px 42px;
+}
+.count-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.count-text {
+  color: var(--text2);
+  font-size: 13px;
+}
+.count-text strong {
+  color: var(--text);
+  font-size: 18px;
+  font-family: var(--serif);
 }
 .grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(255px, 1fr));
+  gap: 14px;
 }
-.panel {
-  padding: 14px;
-  min-height: 265px;
+.card {
+  position: relative;
+  overflow: hidden;
+  min-height: 390px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  cursor: pointer;
+  animation: cardIn 0.35s ease both;
 }
-.panel-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  align-items: flex-start;
-  margin-bottom: 12px;
+body.light .card {
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08), 0 7px 24px rgba(0,0,0,0.07);
 }
-.panel h3 {
-  margin: 0;
+.card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border2);
+}
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.card-photo {
+  position: relative;
+  height: 158px;
+  background: var(--surface2);
+  overflow: hidden;
+}
+.card-photo img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+.photo-placeholder {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--text3);
+  font-size: 42px;
+}
+.pill {
+  position: absolute;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  max-width: calc(100% - 20px);
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 4px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid rgba(255,255,255,0.11);
+  background: rgba(0,0,0,0.52);
+  color: rgba(255,255,255,0.9);
+  backdrop-filter: blur(9px);
+  font-size: 10px;
+  font-weight: 800;
+}
+.lot-pill { left: 10px; bottom: 10px; }
+.source-pill { left: 10px; top: 10px; }
+.ct-pill { right: 10px; top: 10px; }
+.ct-pill.favorable { background: rgba(22,163,74,0.9); }
+.ct-pill.defavorable { background: rgba(220,38,38,0.92); }
+.ct-pill.surveillance { background: rgba(161,98,7,0.92); }
+.status-ribbon {
+  position: absolute;
+  left: 10px;
+  top: 42px;
+  z-index: 3;
+  border-radius: 6px;
+  padding: 4px 8px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+}
+.status-ribbon.adjuge { background: rgba(22,163,74,0.92); }
+.status-ribbon.invendu { background: rgba(220,38,38,0.92); }
+.status-ribbon.en-cours { background: rgba(37,99,235,0.88); }
+.fav-btn {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 4;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 50%;
+  background: rgba(0,0,0,0.48);
+  color: #fff;
+  cursor: pointer;
+}
+.fav-btn.active {
+  background: rgba(248,113,113,0.22);
+  border-color: rgba(248,113,113,0.45);
+  color: #fecaca;
+}
+.card-body {
+  padding: 13px;
+}
+.card-title {
+  min-height: 42px;
+  color: var(--text);
   font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
 }
-.panel .meta {
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: 12px;
+.card-sub {
+  margin-top: 5px;
+  color: var(--text3);
+  font-size: 11px;
+}
+.specs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 10px;
+  min-height: 52px;
+}
+.spec {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface2);
+  color: var(--text2);
+  padding: 4px 7px;
+  font-size: 10px;
+  font-weight: 600;
+}
+.pricing {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.price-label {
+  color: var(--text3);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.price-value {
+  margin-top: 3px;
+  color: var(--text);
+  font: 600 17px var(--serif);
+}
+.price-value.green { color: var(--green); }
+.final-price {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid rgba(232,164,74,0.22);
+  border-radius: var(--r-sm);
+  background: var(--accent-dim);
+  padding: 8px 10px;
+}
+.final-price span {
+  color: var(--text2);
+  font-size: 10px;
+}
+.final-price strong {
+  color: var(--accent);
+  font: 700 16px var(--serif);
+}
+.insights {
+  display: none;
+}
+.insights-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.ins-card {
+  min-height: 265px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  padding: 16px;
+}
+.ins-card.wide { grid-column: span 2; }
+.ins-title {
+  font: 700 17px var(--serif);
+}
+.ins-meta {
+  margin-top: 4px;
+  color: var(--text3);
+  font-size: 11px;
+}
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+.kpi {
+  min-height: 75px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface2);
+  padding: 10px;
+}
+.kpi-val {
+  color: var(--text);
+  font: 700 24px var(--serif);
+}
+.kpi-lbl {
+  margin-top: 4px;
+  color: var(--text3);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 .bar-list {
   display: grid;
   gap: 10px;
+  margin-top: 14px;
 }
 .bar-row {
   display: grid;
@@ -223,369 +575,558 @@ button, input, select { font: inherit; }
   gap: 10px;
   align-items: center;
 }
-.bar-name {
+.bar-label {
   overflow: hidden;
-  white-space: nowrap;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text2);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
 }
 .bar-track {
-  height: 9px;
-  margin-top: 5px;
+  height: 7px;
+  margin-top: 4px;
   overflow: hidden;
-  border-radius: 999px;
-  background: var(--surface-2);
+  border-radius: 99px;
+  background: var(--surface2);
 }
 .bar-fill {
   height: 100%;
-  border-radius: 999px;
-  background: var(--blue);
+  border-radius: 99px;
+  background: var(--accent);
 }
-.bar-fill.teal { background: var(--teal); }
-.bar-fill.amber { background: var(--amber); }
 .bar-fill.green { background: var(--green); }
-.bar-fill.violet { background: var(--violet); }
+.bar-fill.blue { background: var(--blue); }
+.bar-fill.red { background: var(--red); }
+.bar-fill.purple { background: var(--purple); }
 .bar-value {
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  font-size: 12px;
-  font-weight: 800;
+  color: var(--text3);
+  font: 600 11px var(--mono);
 }
-.split-metrics {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+.table-card {
+  margin-top: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
 }
-.metric-box {
-  min-height: 76px;
-  padding: 11px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: var(--surface-2);
-}
-.metric-box strong {
-  display: block;
-  margin-top: 6px;
-  overflow-wrap: anywhere;
-  font-size: 16px;
-}
-.metric-box span {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.table-panel { overflow: hidden; }
 .table-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 13px 14px;
-  border-bottom: 1px solid var(--line);
-}
-.table-head strong { font-size: 15px; }
-.table-meta {
-  color: var(--muted);
-  font-size: 12px;
+  padding: 13px 15px;
+  border-bottom: 1px solid var(--border);
 }
 .table-wrap {
-  max-height: 650px;
+  max-height: 520px;
   overflow: auto;
 }
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 12px;
 }
 th {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: #edf2f7;
-  color: #475569;
+  background: var(--surface2);
+  color: var(--text3);
   padding: 10px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--border);
   text-align: left;
   white-space: nowrap;
-  cursor: pointer;
-  font-size: 11px;
-  letter-spacing: 0.05em;
+  font-size: 10px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 td {
-  padding: 10px;
-  border-bottom: 1px solid var(--line);
-  vertical-align: top;
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text2);
   white-space: nowrap;
 }
-td.vehicle {
-  min-width: 245px;
-  max-width: 340px;
+td.vehicle-cell {
+  min-width: 260px;
   white-space: normal;
+  color: var(--text);
+  font-weight: 700;
 }
-.vehicle-title { font-weight: 800; }
-.vehicle-sub {
-  margin-top: 3px;
-  color: var(--muted);
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(8px);
+}
+.modal {
+  width: min(760px, 100%);
+  max-height: 88vh;
+  overflow: auto;
+  border: 1px solid var(--border2);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: 0 24px 90px rgba(0,0,0,0.35);
+}
+.modal-photo {
+  position: relative;
+  height: 250px;
+  background: var(--surface2);
+}
+.modal-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.modal-close {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 50%;
+  background: rgba(0,0,0,0.48);
+  color: #fff;
+  cursor: pointer;
+  font-size: 18px;
+}
+.modal-body {
+  padding: 20px;
+}
+.modal-title {
+  color: var(--text);
+  font: 700 24px var(--serif);
+  line-height: 1.2;
+}
+.modal-sub {
+  margin-top: 4px;
+  color: var(--text3);
+  font: 500 12px var(--mono);
+}
+.modal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  margin-top: 16px;
+}
+.modal-spec {
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface2);
+  padding: 10px;
+}
+.modal-spec span {
+  display: block;
+  color: var(--text3);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.modal-spec strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--text);
   font-size: 12px;
 }
-.badge {
-  display: inline-flex;
-  max-width: 125px;
-  min-height: 24px;
-  align-items: center;
-  border-radius: 999px;
-  padding: 4px 8px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11px;
-  font-weight: 800;
+.detail-section {
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface2);
+  padding: 13px;
 }
-.badge.adjuge { background: #dcfce7; color: #166534; }
-.badge.invendu { background: #fee2e2; color: #991b1b; }
-.badge.en_cours { background: #fef3c7; color: #92400e; }
-.badge.other { background: #e0e7ff; color: #3730a3; }
-.link {
-  color: var(--blue);
+.detail-title {
+  margin-bottom: 8px;
+  color: var(--text3);
+  font-size: 10px;
   font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.defect {
+  display: flex;
+  gap: 8px;
+  padding: 7px 0;
+  color: var(--text2);
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.defect:first-of-type { border-top: 0; }
+.defect.major { color: var(--red); }
+.defect.minor { color: var(--yellow); }
+.raw-json {
+  max-height: 230px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--text2);
+  font: 10px/1.6 var(--mono);
+}
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+.modal-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 39px;
+  padding: 9px 13px;
   text-decoration: none;
+  font-size: 12px;
+  font-weight: 700;
+}
+.modal-btn.primary {
+  background: var(--accent-dim);
+  border-color: rgba(232,164,74,0.35);
+  color: var(--accent);
 }
 .empty {
-  padding: 28px 12px;
-  color: var(--muted);
+  grid-column: 1 / -1;
+  min-height: 260px;
+  display: grid;
+  place-items: center;
+  color: var(--text3);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
   text-align: center;
 }
 .toast {
   position: fixed;
   right: 16px;
   top: 16px;
+  z-index: 2000;
   max-width: min(440px, calc(100vw - 32px));
-  z-index: 20;
-  border-radius: 8px;
-  padding: 12px 14px;
-  background: #101827;
-  color: #fff;
-  box-shadow: var(--shadow);
+  border: 1px solid var(--border2);
+  border-radius: var(--r-sm);
+  background: var(--surface2);
+  color: var(--text);
+  padding: 11px 13px;
+  box-shadow: 0 18px 60px rgba(0,0,0,0.25);
+  font-size: 13px;
   font-weight: 700;
 }
-.toast.error { background: var(--red); }
-.toast.ok { background: var(--green); }
-.toast.warn { background: var(--amber); }
-@media (max-width: 1180px) {
-  .kpis { grid-template-columns: repeat(3, minmax(135px, 1fr)); }
-  .grid { grid-template-columns: 1fr; }
+.toast.error { border-color: rgba(248,113,113,0.35); color: var(--red); }
+.toast.ok { border-color: rgba(74,222,128,0.35); color: var(--green); }
+.bottom-nav { display: none; }
+.backdrop { display: none; }
+@media (max-width: 1040px) {
+  .insights-grid { grid-template-columns: 1fr; }
+  .ins-card.wide { grid-column: auto; }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
 }
-@media (max-width: 800px) {
-  .app { grid-template-columns: 1fr; }
-  .sidebar { position: relative; height: auto; }
-  .main { padding: 14px; }
-  .topbar { display: grid; }
-  .statusbar { justify-content: flex-start; }
-  .kpis { grid-template-columns: repeat(2, minmax(135px, 1fr)); }
-}
-@media (max-width: 520px) {
-  .kpis, .row, .split-metrics { grid-template-columns: 1fr; }
+@media (max-width: 760px) {
+  :root { --side: 0px; }
+  .sidebar {
+    width: 260px;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+  }
+  .sidebar.open { transform: translateX(0); }
+  .backdrop.open {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 170;
+    background: rgba(0,0,0,0.45);
+  }
+  .header { margin-left: 0; }
+  .header-inner { height: 52px; padding: 0 12px; }
+  .mobile-menu { display: grid; }
+  .header-stats {
+    justify-content: flex-start;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    max-width: calc(100vw - 150px);
+  }
+  .hstat { min-width: 44px; padding: 4px 7px; }
+  .tabs { display: none; }
+  .filterbar { margin-left: 0; top: 52px; padding: 10px 12px; }
+  .main { margin-left: 0; padding: 12px 12px 76px; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+  .card { min-height: 330px; border-radius: var(--r-md); }
+  .card-photo { height: 132px; }
+  .card-title { font-size: 13px; min-height: 38px; }
+  .pricing { grid-template-columns: 1fr; gap: 6px; }
+  .bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 160;
+    display: flex;
+    border-top: 1px solid var(--border);
+    background: rgba(15,14,13,0.95);
+    backdrop-filter: blur(20px);
+  }
+  body.light .bottom-nav { background: rgba(250,248,245,0.97); }
+  .bottom-nav button {
+    flex: 1;
+    min-height: 56px;
+    border: 0;
+    background: transparent;
+    color: var(--text3);
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .bottom-nav button.active { color: var(--accent); }
+  .modal-overlay { align-items: flex-end; padding: 0; }
+  .modal { max-height: 94vh; border-radius: var(--r-lg) var(--r-lg) 0 0; }
+  .modal-photo { height: 210px; }
 }
 </style>
 </head>
 <body>
-<div class="app">
-  <aside class="sidebar">
-    <div class="brand">
-      <div class="brand-mark">A</div>
-      <div>
-        <h1>Lots Unifies</h1>
-        <p>Analytics Supabase live</p>
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">A</div>
+    <div class="logo-text">AutoLot<span>Unifie</span></div>
+  </div>
+
+  <div>
+    <div class="section-label">Navigation</div>
+    <div class="stack">
+      <button class="side-btn active" id="nav-lots" type="button" data-tab="lots">Lots <span class="badge-count" id="side-count" hidden>0</span></button>
+      <button class="side-btn" id="nav-insights" type="button" data-tab="insights">Insights</button>
+      <button class="side-btn" id="nav-favs" type="button" data-tab="favs">Favoris <span class="badge-count" id="fav-count" hidden>0</span></button>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">Connexion</div>
+    <div class="stack">
+      <input class="field" id="supabase-url" placeholder="Supabase REST URL">
+      <input class="field" id="supabase-key" placeholder="Anon / publishable key">
+      <input class="field" id="supabase-table" value="lots_unifies" placeholder="Vue">
+      <button class="side-btn active" id="load-btn" type="button">Charger</button>
+      <div class="note">Vue conseillee : lots_unifies. Lecture seule depuis Supabase REST.</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">Controle technique</div>
+    <div class="chips" id="ct-chips">
+      <button class="chip active" type="button" data-ct="">Tous</button>
+      <button class="chip" type="button" data-ct="favorable">Favorable</button>
+      <button class="chip" type="button" data-ct="surveillance">Surv.</button>
+      <button class="chip" type="button" data-ct="defavorable">Def.</button>
+      <button class="chip" type="button" data-ct="missing">Sans CT</button>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">Vehicule</div>
+    <div class="stack">
+      <select class="select" id="source-filter"><option value="">Toutes sources</option></select>
+      <select class="select" id="salle-filter"><option value="">Toutes salles</option></select>
+      <select class="select" id="date-filter"><option value="">Toutes dates</option></select>
+      <select class="select" id="marque-filter"><option value="">Toutes marques</option></select>
+      <div class="side-grid">
+        <select class="select" id="energie-filter"><option value="">Energie</option></select>
+        <select class="select" id="statut-filter"><option value="">Statut</option></select>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">Plages</div>
+    <div class="stack">
+      <div class="side-grid">
+        <input class="field" id="price-min" inputmode="numeric" placeholder="Prix min">
+        <input class="field" id="price-max" inputmode="numeric" placeholder="Prix max">
+      </div>
+      <div class="side-grid">
+        <input class="field" id="year-min" inputmode="numeric" placeholder="Annee min">
+        <input class="field" id="km-max" inputmode="numeric" placeholder="Km max">
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">Tri</div>
+    <div class="sort-grid">
+      <button class="sort-btn active" type="button" data-sort="date_vente">Date</button>
+      <button class="sort-btn" type="button" data-sort="prix_adjudication_eur">Prix</button>
+      <button class="sort-btn" type="button" data-sort="km">Km</button>
+      <button class="sort-btn" type="button" data-sort="annee_mec">Annee</button>
+    </div>
+  </div>
+
+  <div class="sidebar-footer">
+    <button class="side-btn" id="reset-btn" type="button">Reset</button>
+    <button class="side-btn" id="csv-btn" type="button">CSV</button>
+  </div>
+</aside>
+<div class="backdrop" id="backdrop"></div>
+
+<header class="header">
+  <div class="header-inner">
+    <button class="icon-btn mobile-menu" id="menu-btn" type="button">☰</button>
+    <div class="sidebar-logo">
+      <div class="logo-mark">A</div>
+      <div class="logo-text">AutoLot<span>Unifie</span></div>
+    </div>
+    <div class="header-stats" id="header-stats"></div>
+    <div class="header-actions">
+      <button class="icon-btn" id="theme-btn" type="button" title="Theme">◐</button>
+      <button class="icon-btn" id="refresh-btn" type="button" title="Actualiser">↻</button>
+    </div>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" type="button" data-tab="lots">Lots</button>
+  <button class="tab" type="button" data-tab="insights">Insights</button>
+  <button class="tab" type="button" data-tab="favs">Favoris</button>
+</nav>
+
+<div class="filterbar" id="filterbar">
+  <div class="search-row">
+    <span class="search-icon">⌕</span>
+    <input class="search-input" id="search" placeholder="Rechercher marque, modele, salle, lot, CT...">
+  </div>
+</div>
+
+<main class="main">
+  <section id="page-lots">
+    <div class="count-bar">
+      <div class="count-text" id="count-text">Aucune donnee chargee</div>
+      <div class="note" id="fresh-text"></div>
+    </div>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <section class="insights" id="page-insights">
+    <div class="insights-grid">
+      <div class="ins-card wide">
+        <div class="ins-title">Vue generale</div>
+        <div class="ins-meta">Indicateurs calcules sur les filtres actifs</div>
+        <div class="kpi-grid" id="kpi-grid"></div>
+      </div>
+      <div class="ins-card">
+        <div class="ins-title">Mix source</div>
+        <div class="ins-meta">Ancienne table vs nouveau flux</div>
+        <div class="bar-list" id="source-bars"></div>
+      </div>
+      <div class="ins-card">
+        <div class="ins-title">Statuts</div>
+        <div class="ins-meta">Etat des ventes</div>
+        <div class="bar-list" id="status-bars"></div>
+      </div>
+      <div class="ins-card">
+        <div class="ins-title">Salles</div>
+        <div class="ins-meta">CA par salle</div>
+        <div class="bar-list" id="room-bars"></div>
+      </div>
+      <div class="ins-card">
+        <div class="ins-title">Marques</div>
+        <div class="ins-meta">Vendus par marque</div>
+        <div class="bar-list" id="brand-bars"></div>
+      </div>
+      <div class="ins-card">
+        <div class="ins-title">Controle technique</div>
+        <div class="ins-meta">Couverture et verdicts</div>
+        <div class="bar-list" id="ct-bars"></div>
       </div>
     </div>
 
-    <section class="side-section">
-      <h2 class="side-title">Connexion</h2>
-      <div class="stack">
-        <input class="field" id="supabase-url" placeholder="https://...supabase.co/rest/v1">
-        <input class="field" id="supabase-key" placeholder="Anon / publishable key">
-        <input class="field" id="supabase-table" value="lots_unifies" placeholder="Vue ou table">
-        <div class="row">
-          <button class="btn" id="save-btn" type="button">Sauver</button>
-          <button class="btn primary" id="load-btn" type="button">Charger</button>
-        </div>
-        <p class="note">Lecture seule depuis la vue `lots_unifies`. La config reste dans ce navigateur.</p>
-      </div>
-    </section>
-
-    <section class="side-section">
-      <h2 class="side-title">Filtres</h2>
-      <div class="stack">
-        <input class="field" id="q" placeholder="Recherche lot, marque, modele...">
-        <select class="select" id="source-filter"><option value="">Toutes sources</option></select>
-        <select class="select" id="salle-filter"><option value="">Toutes salles</option></select>
-        <select class="select" id="date-filter"><option value="">Toutes dates</option></select>
-        <select class="select" id="statut-filter"><option value="">Tous statuts</option></select>
-        <select class="select" id="marque-filter"><option value="">Toutes marques</option></select>
-        <select class="select" id="energie-filter"><option value="">Toutes energies</option></select>
-        <select class="select" id="ct-filter"><option value="">Tous CT</option></select>
-        <div class="row">
-          <input class="field" id="price-min" inputmode="numeric" placeholder="Prix min">
-          <input class="field" id="price-max" inputmode="numeric" placeholder="Prix max">
-        </div>
-        <div class="row">
-          <input class="field" id="year-min" inputmode="numeric" placeholder="Annee min">
-          <input class="field" id="km-max" inputmode="numeric" placeholder="Km max">
-        </div>
-        <div class="row">
-          <button class="btn" id="reset-btn" type="button">Reset</button>
-          <button class="btn" id="csv-btn" type="button">CSV</button>
-        </div>
-      </div>
-    </section>
-  </aside>
-
-  <main class="main">
-    <header class="topbar">
-      <div class="title">
-        <h2>Analytics unifiees</h2>
-        <p>Ancienne table `lots` + nouveau flux `alcopa_lots`, dedoublonnes par la vue Supabase.</p>
-      </div>
-      <div class="statusbar">
-        <span class="pill" id="load-state">Pas charge</span>
-        <span class="pill" id="rows-state">0 ligne</span>
-        <span class="pill" id="sort-state">Tri date desc</span>
-      </div>
-    </header>
-
-    <section class="kpis" aria-label="Indicateurs">
-      <div class="kpi"><div class="kpi-label">Lots filtres</div><div class="kpi-value" id="kpi-total">0</div><div class="kpi-sub" id="kpi-total-sub">sur 0</div></div>
-      <div class="kpi"><div class="kpi-label">Adjuges</div><div class="kpi-value" id="kpi-sold">0</div><div class="kpi-sub" id="kpi-sold-sub">taux 0%</div></div>
-      <div class="kpi"><div class="kpi-label">CA vendu</div><div class="kpi-value" id="kpi-revenue">0 EUR</div><div class="kpi-sub">prix adjudication</div></div>
-      <div class="kpi"><div class="kpi-label">Prix moyen</div><div class="kpi-value" id="kpi-average">0 EUR</div><div class="kpi-sub">sur vendus</div></div>
-      <div class="kpi"><div class="kpi-label">CT trouves</div><div class="kpi-value" id="kpi-ct">0</div><div class="kpi-sub" id="kpi-ct-sub">0% des lots</div></div>
-      <div class="kpi"><div class="kpi-label">Maj donnees</div><div class="kpi-value" id="kpi-fresh">-</div><div class="kpi-sub">source_updated_at</div></div>
-    </section>
-
-    <section class="grid">
-      <div class="panel">
-        <div class="panel-head"><div><h3>Mix source</h3><p class="meta">Controle du mix ancien/nouveau</p></div></div>
-        <div class="bar-list" id="source-bars"></div>
-      </div>
-      <div class="panel">
-        <div class="panel-head"><div><h3>Statuts</h3><p class="meta">Pipeline vente</p></div></div>
-        <div class="bar-list" id="status-bars"></div>
-      </div>
-      <div class="panel">
-        <div class="panel-head"><div><h3>Synthese</h3><p class="meta">Meilleurs signaux filtres</p></div></div>
-        <div class="split-metrics" id="summary-boxes"></div>
-      </div>
-    </section>
-
-    <section class="grid">
-      <div class="panel">
-        <div class="panel-head"><div><h3>Salles</h3><p class="meta">CA par salle</p></div></div>
-        <div class="bar-list" id="room-bars"></div>
-      </div>
-      <div class="panel">
-        <div class="panel-head"><div><h3>Marques</h3><p class="meta">Vendus par marque</p></div></div>
-        <div class="bar-list" id="brand-bars"></div>
-      </div>
-      <div class="panel">
-        <div class="panel-head"><div><h3>Controle technique</h3><p class="meta">Verdicts et couverture OCR</p></div></div>
-        <div class="bar-list" id="ct-bars"></div>
-      </div>
-    </section>
-
-    <section class="table-panel">
+    <div class="table-card">
       <div class="table-head">
-        <div>
-          <strong>Lots</strong>
-          <div class="table-meta" id="table-meta">Clique sur une colonne pour trier</div>
-        </div>
-        <div class="table-meta" id="loading" hidden>Chargement...</div>
+        <strong>Table export</strong>
+        <span class="note" id="table-meta">0 ligne</span>
       </div>
       <div class="table-wrap" id="table-wrap"></div>
-    </section>
-  </main>
-</div>
+    </div>
+  </section>
+</main>
+
+<nav class="bottom-nav">
+  <button class="active" type="button" data-tab="lots">Lots</button>
+  <button type="button" data-tab="insights">Insights</button>
+  <button type="button" data-tab="favs">Favoris</button>
+</nav>
 
 <script>
-const DEFAULTS = {
+const DEFAULT_CFG = {
   url: 'https://gqmopxnrlacxyxiigjob.supabase.co/rest/v1',
   key: 'sb_publishable_BglDdUO2tKYBBS4HzZjqyw_iQD-Q4KS',
   table: 'lots_unifies'
 };
-const CONFIG_KEY = 'alcopa_lots_unifies_analytics_config';
+const CONFIG_KEY = 'autolot-unifies-config';
+const FAV_KEY = 'autolot-unifies-favs';
 const state = {
   all: [],
   filtered: [],
-  sort: { key: 'source_updated_at', dir: 'desc' }
+  tab: 'lots',
+  ct: '',
+  sort: { key: 'date_vente', dir: 'desc' },
+  displayed: 0,
+  batch: 72,
+  observer: null
 };
-const columns = [
-  { key: 'date_vente', label: 'Date', type: 'string' },
-  { key: 'salle', label: 'Salle', type: 'string' },
-  { key: 'lot_number', label: 'Lot', type: 'number' },
-  { key: 'vehicle', label: 'Vehicule', type: 'string' },
-  { key: 'annee_mec', label: 'Annee', type: 'number' },
-  { key: 'km', label: 'Km', type: 'number' },
-  { key: 'energie', label: 'Energie', type: 'string' },
-  { key: 'mise_a_prix', label: 'Depart', type: 'number' },
-  { key: 'prix_adjudication_eur', label: 'Adjuge', type: 'number' },
-  { key: 'statut', label: 'Statut', type: 'string' },
-  { key: 'ct_verdict', label: 'CT', type: 'string' },
-  { key: 'source_table', label: 'Source', type: 'string' }
-];
 
 const $ = (id) => document.getElementById(id);
-const asText = (value) => value == null ? '' : String(value);
-const asNumber = (value) => {
+const text = (value) => value == null ? '' : String(value);
+const esc = (value) => text(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
+const num = (value) => {
   if (value == null || value === '') return 0;
-  const normalized = String(value).replace(/\s/g, '').replace(',', '.');
-  const parsed = Number(normalized);
+  const parsed = Number(String(value).replace(/\s/g, '').replace(',', '.'));
   return Number.isFinite(parsed) ? parsed : 0;
 };
-const fmtInt = (value) => Math.round(asNumber(value)).toLocaleString('fr-FR');
-const fmtMoney = (value) => asNumber(value).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' EUR';
-const fmtPct = (value) => asNumber(value).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
-const escapeHtml = (value) => asText(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
-const vehicleName = (lot) => [lot.marque, lot.modele].filter(Boolean).join(' ') || lot.description || '-';
+const fmt = (value) => Math.round(num(value)).toLocaleString('fr-FR');
+const eur = (value) => fmt(value) + ' €';
+const pct = (value) => num(value).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+const norm = (value) => text(value).trim().toLowerCase();
+const vehicleTitle = (lot) => [lot.marque, lot.modele].filter(Boolean).join(' ') || lot.description || 'Vehicule';
+const primaryPrice = (lot) => num(lot.prix_adjudication_eur || lot.enchere_courante || lot.mise_a_prix || lot.estimation_eur);
+const finalPrice = (lot) => {
+  const base = primaryPrice(lot);
+  return base ? Math.round(base * 1.14 + 200) : 0;
+};
+const isSold = (lot) => /adjug|vendu|sold/.test(norm(lot.statut));
+const isUnsold = (lot) => /invendu|non vendu|retire|retir/.test(norm(lot.statut));
 const linkFor = (lot) => lot.url_alcopa || lot.url_interencheres || '';
-const isSold = (lot) => ['adjuge', 'adjugé', 'vendu', 'sold'].includes(asText(lot.statut).toLowerCase());
 const hasCt = (lot) => Boolean(lot.url_ct || lot.ct_verdict || lot.ct_defauts_maj || lot.ct_defauts_min);
+const lotKey = (lot) => lot.unified_key || lot.id || lot.merge_key || [lot.sale_id, lot.salle, lot.date_vente, lot.lot_number].join('|');
 
-function getConfig() {
-  try {
-    return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}') };
-  } catch {
-    return { ...DEFAULTS };
-  }
+function config() {
+  try { return { ...DEFAULT_CFG, ...JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}') }; }
+  catch { return { ...DEFAULT_CFG }; }
 }
 
 function hydrateConfig() {
-  const cfg = getConfig();
+  const cfg = config();
   $('supabase-url').value = cfg.url;
   $('supabase-key').value = cfg.key;
   $('supabase-table').value = cfg.table;
 }
 
-function saveConfig({ silent = false } = {}) {
+function saveConfig() {
   const cfg = {
     url: $('supabase-url').value.trim().replace(/\/+$/, ''),
     key: $('supabase-key').value.trim(),
     table: $('supabase-table').value.trim() || 'lots_unifies'
   };
   if (!cfg.url || !cfg.key || !cfg.table) {
-    toast('Config Supabase incomplete', 'warn');
+    toast('Configuration Supabase incomplete', 'error');
     return null;
   }
   localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
-  if (!silent) toast('Config sauvegardee', 'ok');
   return cfg;
 }
 
 function toast(message, type = 'ok') {
-  const existing = document.querySelector('.toast');
-  if (existing) existing.remove();
+  const old = document.querySelector('.toast');
+  if (old) old.remove();
   const el = document.createElement('div');
   el.className = 'toast ' + type;
   el.textContent = message;
@@ -593,54 +1134,102 @@ function toast(message, type = 'ok') {
   setTimeout(() => el.remove(), 2800);
 }
 
-function setLoading(value) {
-  $('loading').hidden = !value;
-  $('load-state').textContent = value ? 'Chargement' : (state.all.length ? 'Sync OK' : 'Pas charge');
+function getFavs() {
+  try { return JSON.parse(localStorage.getItem(FAV_KEY) || '[]'); }
+  catch { return []; }
 }
 
-function queryUrl(cfg, from, to) {
+function saveFavs(ids) {
+  localStorage.setItem(FAV_KEY, JSON.stringify(ids));
+  updateFavCount();
+}
+
+function toggleFav(key, button) {
+  let favs = getFavs();
+  if (favs.includes(key)) favs = favs.filter((id) => id !== key);
+  else favs.push(key);
+  saveFavs(favs);
+  if (button) {
+    button.classList.toggle('active', favs.includes(key));
+    button.textContent = favs.includes(key) ? '♥' : '♡';
+  }
+}
+
+function updateFavCount() {
+  const n = getFavs().length;
+  $('fav-count').hidden = n === 0;
+  $('fav-count').textContent = n;
+}
+
+function supabaseUrl(cfg, from, limit) {
   const base = cfg.url.endsWith('/rest/v1') ? cfg.url : cfg.url + '/rest/v1';
   const url = new URL(base + '/' + encodeURIComponent(cfg.table));
   url.searchParams.set('select', '*');
-  url.searchParams.set('order', 'source_updated_at.desc.nullslast');
-  return { url: String(url), range: from + '-' + to };
+  url.searchParams.set('order', 'date_vente.desc.nullslast,lot_number.asc.nullslast');
+  url.searchParams.set('limit', String(limit));
+  url.searchParams.set('offset', String(from));
+  return String(url);
 }
 
-async function fetchAllRows(cfg) {
-  const rows = [];
-  const step = 1000;
+async function fetchLots(cfg) {
   let from = 0;
+  const pageSize = 1000;
+  const rows = [];
   while (true) {
-    const { url, range } = queryUrl(cfg, from, from + step - 1);
-    const response = await fetch(url, {
+    const response = await fetch(supabaseUrl(cfg, from, pageSize), {
       headers: {
         apikey: cfg.key,
         Authorization: 'Bearer ' + cfg.key,
-        'Range-Unit': 'items',
-        Range: range
+        'Content-Type': 'application/json',
+        Prefer: 'count=none'
       }
     });
-    if (!response.ok) {
-      const preview = await response.text();
-      throw new Error('HTTP ' + response.status + ' ' + preview.slice(0, 220));
-    }
+    if (!response.ok) throw new Error('Supabase HTTP ' + response.status + ' ' + (await response.text()).slice(0, 180));
     const batch = await response.json();
     rows.push(...batch);
-    if (batch.length < step) break;
-    from += step;
+    if (batch.length < pageSize) break;
+    from += pageSize;
   }
-  return rows;
+  return rows.map(enrichLot);
 }
 
-function uniqueSorted(rows, key) {
-  return [...new Set(rows.map((row) => asText(row[key]).trim()).filter(Boolean))]
+function asArray(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return value.trim() ? [value] : [];
+    }
+  }
+  return [];
+}
+
+function enrichLot(lot) {
+  return {
+    ...lot,
+    lot_number: lot.lot_number == null ? null : Number(lot.lot_number),
+    km: num(lot.km),
+    mise_a_prix: num(lot.mise_a_prix),
+    enchere_courante: num(lot.enchere_courante),
+    estimation_eur: num(lot.estimation_eur),
+    prix_adjudication_eur: num(lot.prix_adjudication_eur),
+    ct_defauts_maj: asArray(lot.ct_defauts_maj),
+    ct_defauts_min: asArray(lot.ct_defauts_min)
+  };
+}
+
+function unique(rows, key) {
+  return [...new Set(rows.map((row) => text(row[key]).trim()).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, 'fr', { numeric: true, sensitivity: 'base' }));
 }
 
 function fillSelect(id, label, values) {
   const el = $(id);
   const current = el.value;
-  el.innerHTML = '<option value="">' + escapeHtml(label) + '</option>';
+  el.innerHTML = '<option value="">' + esc(label) + '</option>';
   for (const value of values) {
     const option = document.createElement('option');
     option.value = value;
@@ -651,69 +1240,213 @@ function fillSelect(id, label, values) {
 }
 
 function hydrateFilters() {
-  fillSelect('source-filter', 'Toutes sources', uniqueSorted(state.all, 'source_table'));
-  fillSelect('salle-filter', 'Toutes salles', uniqueSorted(state.all, 'salle'));
-  fillSelect('date-filter', 'Toutes dates', uniqueSorted(state.all, 'date_vente').reverse());
-  fillSelect('statut-filter', 'Tous statuts', uniqueSorted(state.all, 'statut'));
-  fillSelect('marque-filter', 'Toutes marques', uniqueSorted(state.all, 'marque'));
-  fillSelect('energie-filter', 'Toutes energies', uniqueSorted(state.all, 'energie'));
-  fillSelect('ct-filter', 'Tous CT', uniqueSorted(state.all, 'ct_verdict'));
+  fillSelect('source-filter', 'Toutes sources', unique(state.all, 'source_table'));
+  fillSelect('salle-filter', 'Toutes salles', unique(state.all, 'salle'));
+  fillSelect('date-filter', 'Toutes dates', unique(state.all, 'date_vente').reverse());
+  fillSelect('marque-filter', 'Toutes marques', unique(state.all, 'marque'));
+  fillSelect('energie-filter', 'Energie', unique(state.all, 'energie'));
+  fillSelect('statut-filter', 'Statut', unique(state.all, 'statut'));
 }
 
-function activeFilters() {
+function filterValues() {
   return {
-    q: $('q').value.trim().toLowerCase(),
+    q: norm($('search').value),
     source: $('source-filter').value,
     salle: $('salle-filter').value,
     date: $('date-filter').value,
-    statut: $('statut-filter').value,
     marque: $('marque-filter').value,
     energie: $('energie-filter').value,
-    ct: $('ct-filter').value,
-    priceMin: asNumber($('price-min').value),
-    priceMax: $('price-max').value.trim() ? asNumber($('price-max').value) : Infinity,
-    yearMin: asNumber($('year-min').value),
-    kmMax: $('km-max').value.trim() ? asNumber($('km-max').value) : Infinity
+    statut: $('statut-filter').value,
+    priceMin: num($('price-min').value),
+    priceMax: $('price-max').value.trim() ? num($('price-max').value) : Infinity,
+    yearMin: num($('year-min').value),
+    kmMax: $('km-max').value.trim() ? num($('km-max').value) : Infinity
   };
 }
 
-function matchesFilters(lot, f) {
-  if (f.q) {
-    const haystack = [
-      lot.unified_key, lot.sale_id, lot.salle, lot.date_vente, lot.lot_number,
-      lot.marque, lot.modele, lot.description, lot.energie, lot.boite,
-      lot.statut, lot.canal, lot.ct_verdict, lot.source_table
-    ].join(' ').toLowerCase();
-    if (!haystack.includes(f.q)) return false;
+function matchLot(lot, f) {
+  if (state.tab === 'favs' && !getFavs().includes(lotKey(lot))) return false;
+  if (state.ct === 'missing') {
+    if (hasCt(lot)) return false;
+  } else if (state.ct && norm(lot.ct_verdict) !== state.ct) {
+    return false;
   }
   if (f.source && lot.source_table !== f.source) return false;
   if (f.salle && lot.salle !== f.salle) return false;
   if (f.date && lot.date_vente !== f.date) return false;
-  if (f.statut && lot.statut !== f.statut) return false;
   if (f.marque && lot.marque !== f.marque) return false;
   if (f.energie && lot.energie !== f.energie) return false;
-  if (f.ct && lot.ct_verdict !== f.ct) return false;
-  const price = asNumber(lot.prix_adjudication_eur || lot.enchere_courante || lot.estimation_eur || lot.mise_a_prix);
+  if (f.statut && lot.statut !== f.statut) return false;
+  const price = primaryPrice(lot);
   if (price < f.priceMin || price > f.priceMax) return false;
-  const year = asNumber(lot.annee_mec);
+  const year = num(lot.annee_mec);
   if (f.yearMin && year && year < f.yearMin) return false;
-  const km = asNumber(lot.km);
-  if (km && km > f.kmMax) return false;
+  if (lot.km && lot.km > f.kmMax) return false;
+  if (f.q) {
+    const hay = [
+      lot.unified_key, lot.id, lot.merge_key, lot.sale_id, lot.salle, lot.date_vente,
+      lot.lot_number, lot.marque, lot.modele, lot.description, lot.energie,
+      lot.boite, lot.lieu_stockage, lot.statut, lot.canal, lot.ct_verdict, lot.source_table
+    ].join(' ').toLowerCase();
+    if (!hay.includes(f.q)) return false;
+  }
   return true;
 }
 
-function compareRows(a, b) {
+function compareLots(a, b) {
   const key = state.sort.key;
-  const spec = columns.find((col) => col.key === key) || { type: 'string' };
-  const av = key === 'vehicle' ? vehicleName(a) : a[key];
-  const bv = key === 'vehicle' ? vehicleName(b) : b[key];
-  let result = 0;
-  if (spec.type === 'number') {
-    result = asNumber(av) - asNumber(bv);
-  } else {
-    result = asText(av).localeCompare(asText(bv), 'fr', { numeric: true, sensitivity: 'base' });
-  }
+  const av = key === 'price' ? primaryPrice(a) : a[key];
+  const bv = key === 'price' ? primaryPrice(b) : b[key];
+  const numeric = ['prix_adjudication_eur', 'km', 'annee_mec', 'lot_number', 'price'].includes(key);
+  const result = numeric
+    ? num(av) - num(bv)
+    : text(av).localeCompare(text(bv), 'fr', { numeric: true, sensitivity: 'base' });
   return state.sort.dir === 'asc' ? result : -result;
+}
+
+function applyAll() {
+  state.filtered = state.all.filter((lot) => matchLot(lot, filterValues())).sort(compareLots);
+  updateHeaderStats();
+  updateActiveBadges();
+  renderCurrentPage();
+}
+
+function updateActiveBadges() {
+  const n = state.filtered.length;
+  $('side-count').hidden = !state.all.length || n === state.all.length;
+  $('side-count').textContent = n;
+  document.querySelectorAll('[data-sort]').forEach((btn) => {
+    const active = btn.dataset.sort === state.sort.key;
+    btn.classList.toggle('active', active);
+    if (active && !btn.dataset.base) btn.dataset.base = btn.textContent.replace(/[↑↓]/g, '').trim();
+    if (btn.dataset.base) btn.textContent = btn.dataset.base + (active ? (state.sort.dir === 'asc' ? ' ↑' : ' ↓') : '');
+  });
+}
+
+function headerStat(label, value, color = '') {
+  return '<div class="hstat"><div class="hstat-val" style="' + (color ? 'color:' + color : '') + '">' + esc(value) + '</div><div class="hstat-lbl">' + esc(label) + '</div></div>';
+}
+
+function updateHeaderStats() {
+  const rows = state.filtered;
+  const sold = rows.filter(isSold);
+  const revenue = sold.reduce((sum, lot) => sum + num(lot.prix_adjudication_eur), 0);
+  const ctOk = rows.filter((lot) => norm(lot.ct_verdict) === 'favorable').length;
+  const ctBad = rows.filter((lot) => ['defavorable', 'surveillance'].includes(norm(lot.ct_verdict))).length;
+  $('header-stats').innerHTML = [
+    headerStat('Lots', fmt(rows.length)),
+    headerStat('Adj.', fmt(sold.length), 'var(--green)'),
+    headerStat('CA', sold.length ? eur(revenue) : '0 €', 'var(--accent)'),
+    headerStat('CT OK', fmt(ctOk), 'var(--green)'),
+    headerStat('CT risque', fmt(ctBad), 'var(--red)')
+  ].join('');
+}
+
+function statusRibbon(lot) {
+  if (isSold(lot)) return '<div class="status-ribbon adjuge">Adjuge</div>';
+  if (isUnsold(lot)) return '<div class="status-ribbon invendu">Invendu</div>';
+  if (lot.statut) return '<div class="status-ribbon en-cours">' + esc(lot.statut) + '</div>';
+  return '';
+}
+
+function ctPill(lot) {
+  const verdict = norm(lot.ct_verdict);
+  if (verdict === 'favorable') return '<div class="pill ct-pill favorable">CT OK</div>';
+  if (verdict === 'defavorable') return '<div class="pill ct-pill defavorable">CT KO</div>';
+  if (verdict === 'surveillance') return '<div class="pill ct-pill surveillance">CT surv.</div>';
+  if (hasCt(lot)) return '<div class="pill ct-pill">CT present</div>';
+  return '<div class="pill ct-pill">Sans CT</div>';
+}
+
+function renderCard(lot, index) {
+  const key = lotKey(lot);
+  const fav = getFavs().includes(key);
+  const image = lot.thumbnail
+    ? '<img src="' + esc(lot.thumbnail) + '" alt="" loading="lazy">'
+    : '<div class="photo-placeholder">A</div>';
+  const specs = [
+    lot.annee_mec && 'Annee ' + lot.annee_mec,
+    lot.km && fmt(lot.km) + ' km',
+    lot.energie,
+    lot.boite,
+    lot.canal
+  ].filter(Boolean).slice(0, 5).map((item) => '<span class="spec">' + esc(item) + '</span>').join('');
+  const primary = primaryPrice(lot);
+  return '<article class="card" style="animation-delay:' + Math.min(index * 20, 240) + 'ms" data-key="' + esc(key) + '">' +
+    '<div class="card-photo">' + image +
+      '<div class="pill source-pill">' + esc(lot.source_table || 'source') + '</div>' +
+      ctPill(lot) +
+      statusRibbon(lot) +
+      (lot.lot_number ? '<div class="pill lot-pill">Lot #' + esc(lot.lot_number) + '</div>' : '') +
+      '<button class="fav-btn' + (fav ? ' active' : '') + '" type="button" data-fav="' + esc(key) + '">' + (fav ? '♥' : '♡') + '</button>' +
+    '</div>' +
+    '<div class="card-body">' +
+      '<div class="card-title">' + esc(vehicleTitle(lot)) + '</div>' +
+      '<div class="card-sub">' + esc([lot.salle, lot.lieu_stockage, lot.date_vente].filter(Boolean).join(' · ')) + '</div>' +
+      '<div class="specs">' + specs + '</div>' +
+      '<div class="pricing">' +
+        '<div><div class="price-label">Depart</div><div class="price-value">' + (lot.mise_a_prix ? eur(lot.mise_a_prix) : lot.estimation_eur ? eur(lot.estimation_eur) : '-') + '</div></div>' +
+        '<div><div class="price-label">' + (lot.prix_adjudication_eur ? 'Adjudication' : lot.enchere_courante ? 'Enchere live' : 'Prix') + '</div><div class="price-value green">' + (primary ? eur(primary) : '-') + '</div></div>' +
+      '</div>' +
+      (primary ? '<div class="final-price"><span>Prix final estime</span><strong>' + eur(finalPrice(lot)) + '</strong></div>' : '') +
+    '</div>' +
+  '</article>';
+}
+
+function renderGrid() {
+  const rows = state.filtered;
+  const grid = $('grid');
+  if (state.observer) {
+    state.observer.disconnect();
+    state.observer = null;
+  }
+  state.displayed = 0;
+  $('count-text').innerHTML = '<strong>' + fmt(rows.length) + '</strong> lot' + (rows.length !== 1 ? 's' : '') + ' · <span id="displayed-count">0</span> affiche' + (rows.length !== 1 ? 's' : '');
+  if (!rows.length) {
+    grid.innerHTML = '<div class="empty"><div><strong>Aucun lot trouve</strong><br><span>Essaie de retirer un filtre.</span></div></div>';
+    return;
+  }
+  grid.innerHTML = '';
+  appendBatch();
+  const sentinel = document.createElement('div');
+  sentinel.id = 'sentinel';
+  sentinel.style.cssText = 'height:1px;grid-column:1/-1';
+  grid.appendChild(sentinel);
+  state.observer = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting) appendBatch();
+  }, { rootMargin: '420px' });
+  state.observer.observe(sentinel);
+}
+
+function appendBatch() {
+  const grid = $('grid');
+  const sentinel = $('sentinel');
+  const slice = state.filtered.slice(state.displayed, state.displayed + state.batch);
+  for (const [i, lot] of slice.entries()) {
+    const wrap = document.createElement('div');
+    wrap.innerHTML = renderCard(lot, state.displayed + i);
+    const card = wrap.firstElementChild;
+    card.addEventListener('click', () => openModal(lotKey(lot)));
+    const img = card.querySelector('.card-photo img');
+    if (img) {
+      img.addEventListener('error', () => {
+        img.parentElement.innerHTML = '<div class="photo-placeholder">A</div>';
+      }, { once: true });
+    }
+    card.querySelector('[data-fav]').addEventListener('click', (event) => {
+      event.stopPropagation();
+      toggleFav(lotKey(lot), event.currentTarget);
+      if (state.tab === 'favs') applyAll();
+    });
+    grid.insertBefore(card, sentinel || null);
+  }
+  state.displayed += slice.length;
+  const dc = $('displayed-count');
+  if (dc) dc.textContent = fmt(state.displayed);
+  if (state.displayed >= state.filtered.length) {
+    if (state.observer) state.observer.disconnect();
+    if (sentinel) sentinel.remove();
+  }
 }
 
 function aggregate(rows, getter) {
@@ -725,182 +1458,140 @@ function aggregate(rows, getter) {
     item.count += 1;
     if (isSold(row)) {
       item.sold += 1;
-      item.revenue += asNumber(row.prix_adjudication_eur);
+      item.revenue += num(row.prix_adjudication_eur);
     }
   }
   return [...map.values()];
 }
 
-function renderBars(id, rows, valueKey, options = {}) {
+function bars(id, items, valueKey, { color = '', format = (item) => fmt(item[valueKey]) } = {}) {
   const el = $(id);
-  if (!rows.length) {
-    el.innerHTML = '<div class="empty">Pas de donnees</div>';
+  if (!items.length) {
+    el.innerHTML = '<div class="note">Pas assez de donnees</div>';
     return;
   }
-  const max = Math.max(...rows.map((row) => asNumber(row[valueKey])), 1);
-  el.innerHTML = rows.map((row) => {
-    const width = Math.max((asNumber(row[valueKey]) / max) * 100, 3);
-    const value = options.format ? options.format(row) : fmtInt(row[valueKey]);
-    return '<div class="bar-row"><div><div class="bar-name" title="' + escapeHtml(row.key) + '">' +
-      escapeHtml(row.key) + '</div><div class="bar-track"><div class="bar-fill ' +
-      escapeHtml(options.color || '') + '" style="width:' + width.toFixed(2) +
-      '%"></div></div></div><div class="bar-value">' + escapeHtml(value) + '</div></div>';
+  const max = Math.max(...items.map((item) => num(item[valueKey])), 1);
+  el.innerHTML = items.map((item) => {
+    const width = Math.max(4, num(item[valueKey]) / max * 100);
+    return '<div class="bar-row"><div><div class="bar-label" title="' + esc(item.key) + '">' + esc(item.key) + '</div><div class="bar-track"><div class="bar-fill ' + esc(color) + '" style="width:' + width.toFixed(2) + '%"></div></div></div><div class="bar-value">' + esc(format(item)) + '</div></div>';
   }).join('');
 }
 
-function newestDate(rows) {
-  const dates = rows.map((row) => Date.parse(row.source_updated_at)).filter(Number.isFinite);
-  if (!dates.length) return '-';
-  return new Date(Math.max(...dates)).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
-}
-
-function renderKpis(rows) {
+function renderInsights() {
+  const rows = state.filtered;
   const sold = rows.filter(isSold);
-  const revenue = sold.reduce((sum, row) => sum + asNumber(row.prix_adjudication_eur), 0);
+  const revenue = sold.reduce((sum, lot) => sum + num(lot.prix_adjudication_eur), 0);
+  const average = sold.length ? Math.round(revenue / sold.length) : 0;
   const ctCount = rows.filter(hasCt).length;
-  $('kpi-total').textContent = fmtInt(rows.length);
-  $('kpi-total-sub').textContent = 'sur ' + fmtInt(state.all.length);
-  $('kpi-sold').textContent = fmtInt(sold.length);
-  $('kpi-sold-sub').textContent = 'taux ' + fmtPct(rows.length ? sold.length / rows.length * 100 : 0);
-  $('kpi-revenue').textContent = fmtMoney(revenue);
-  $('kpi-average').textContent = fmtMoney(sold.length ? revenue / sold.length : 0);
-  $('kpi-ct').textContent = fmtInt(ctCount);
-  $('kpi-ct-sub').textContent = fmtPct(rows.length ? ctCount / rows.length * 100 : 0) + ' des lots';
-  $('kpi-fresh').textContent = newestDate(rows);
-}
+  const latest = rows.map((lot) => Date.parse(lot.source_updated_at)).filter(Number.isFinite).sort((a, b) => b - a)[0];
+  $('kpi-grid').innerHTML = [
+    ['Lots', fmt(rows.length)],
+    ['Adjuges', fmt(sold.length)],
+    ['Taux vente', pct(rows.length ? sold.length / rows.length * 100 : 0)],
+    ['CA', eur(revenue)],
+    ['Prix moyen', eur(average)],
+    ['CT couverts', pct(rows.length ? ctCount / rows.length * 100 : 0)],
+    ['Sources', fmt(unique(rows, 'source_table').length)],
+    ['Maj', latest ? new Date(latest).toLocaleDateString('fr-FR') : '-']
+  ].map(([label, value]) => '<div class="kpi"><div class="kpi-val">' + esc(value) + '</div><div class="kpi-lbl">' + esc(label) + '</div></div>').join('');
 
-function renderSummary(rows) {
-  const sold = rows.filter(isSold);
-  const topBrand = aggregate(rows, (row) => row.marque).sort((a, b) => b.sold - a.sold)[0];
-  const topRoom = aggregate(rows, (row) => row.salle).sort((a, b) => b.revenue - a.revenue)[0];
-  const years = rows.map((row) => asNumber(row.annee_mec)).filter(Boolean);
-  const kmValues = rows.map((row) => asNumber(row.km)).filter(Boolean);
-  const boxes = [
-    ['Marque top', topBrand ? topBrand.key + ' (' + topBrand.sold + ')' : '-'],
-    ['Salle CA', topRoom ? topRoom.key + ' (' + fmtMoney(topRoom.revenue) + ')' : '-'],
-    ['Annee moy.', years.length ? Math.round(years.reduce((a, b) => a + b, 0) / years.length) : '-'],
-    ['Km median', kmValues.length ? fmtInt(kmValues.sort((a, b) => a - b)[Math.floor(kmValues.length / 2)]) : '-'],
-    ['Lots vendus', fmtInt(sold.length)],
-    ['Liens IE', fmtInt(rows.filter((row) => row.url_interencheres).length)]
-  ];
-  $('summary-boxes').innerHTML = boxes.map(([label, value]) =>
-    '<div class="metric-box"><span>' + escapeHtml(label) + '</span><strong>' + escapeHtml(value) + '</strong></div>'
-  ).join('');
-}
-
-function renderCharts(rows) {
-  renderBars('source-bars', aggregate(rows, (row) => row.source_table).sort((a, b) => b.count - a.count), 'count', {
-    color: 'violet',
-    format: (row) => fmtInt(row.count) + ' lots'
-  });
-  renderBars('status-bars', aggregate(rows, (row) => row.statut).sort((a, b) => b.count - a.count), 'count', {
-    color: 'amber',
-    format: (row) => fmtInt(row.count) + ' lots'
-  });
-  renderBars('room-bars', aggregate(rows, (row) => row.salle).sort((a, b) => b.revenue - a.revenue).slice(0, 10), 'revenue', {
-    color: 'teal',
-    format: (row) => fmtMoney(row.revenue)
-  });
-  renderBars('brand-bars', aggregate(rows, (row) => row.marque).sort((a, b) => b.sold - a.sold || b.count - a.count).slice(0, 10), 'sold', {
-    color: 'green',
-    format: (row) => fmtInt(row.sold) + ' vendus'
-  });
-  renderBars('ct-bars', aggregate(rows, (row) => row.ct_verdict || (hasCt(row) ? 'CT present' : 'Sans CT')).sort((a, b) => b.count - a.count), 'count', {
-    color: 'blue',
-    format: (row) => fmtInt(row.count) + ' lots'
-  });
-  renderSummary(rows);
-}
-
-function sortIndicator(key) {
-  if (state.sort.key !== key) return '';
-  return state.sort.dir === 'asc' ? ' ▲' : ' ▼';
-}
-
-function statusClass(value) {
-  const normalized = asText(value).toLowerCase();
-  if (normalized === 'adjuge' || normalized === 'adjugé') return 'adjuge';
-  if (normalized === 'invendu') return 'invendu';
-  if (normalized === 'en_cours') return 'en_cours';
-  return 'other';
-}
-
-function setSort(key) {
-  if (state.sort.key === key) {
-    state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
-  } else {
-    state.sort = { key, dir: key === 'date_vente' || key === 'source_updated_at' ? 'desc' : 'asc' };
-  }
-  applyAll();
+  bars('source-bars', aggregate(rows, (lot) => lot.source_table).sort((a, b) => b.count - a.count), 'count', { color: 'purple', format: (item) => fmt(item.count) + ' lots' });
+  bars('status-bars', aggregate(rows, (lot) => lot.statut).sort((a, b) => b.count - a.count), 'count', { color: 'blue', format: (item) => fmt(item.count) + ' lots' });
+  bars('room-bars', aggregate(rows, (lot) => lot.salle).sort((a, b) => b.revenue - a.revenue).slice(0, 9), 'revenue', { color: 'green', format: (item) => eur(item.revenue) });
+  bars('brand-bars', aggregate(rows, (lot) => lot.marque).sort((a, b) => b.sold - a.sold || b.count - a.count).slice(0, 9), 'sold', { color: 'green', format: (item) => fmt(item.sold) + ' vendus' });
+  bars('ct-bars', aggregate(rows, (lot) => lot.ct_verdict || (hasCt(lot) ? 'CT present' : 'Sans CT')).sort((a, b) => b.count - a.count), 'count', { color: 'red', format: (item) => fmt(item.count) + ' lots' });
+  renderTable(rows);
 }
 
 function renderTable(rows) {
-  $('rows-state').textContent = fmtInt(rows.length) + ' lignes';
-  $('sort-state').textContent = 'Tri ' + state.sort.key + ' ' + state.sort.dir;
-  $('table-meta').textContent = fmtInt(rows.length) + ' lignes filtrees';
-  const wrap = $('table-wrap');
-  if (!rows.length) {
-    wrap.innerHTML = '<div class="empty">Aucun lot dans ce filtre</div>';
-    return;
-  }
-  let html = '<table><thead><tr>';
-  for (const column of columns) {
-    html += '<th data-sort="' + escapeHtml(column.key) + '">' + escapeHtml(column.label + sortIndicator(column.key)) + '</th>';
-  }
-  html += '<th>Liens</th></tr></thead><tbody>';
-  for (const lot of rows.slice(0, 500)) {
-    const url = linkFor(lot);
-    html += '<tr>';
-    html += '<td>' + escapeHtml(lot.date_vente || '-') + '</td>';
-    html += '<td>' + escapeHtml(lot.salle || '-') + '</td>';
-    html += '<td>' + escapeHtml(lot.lot_number || '-') + '</td>';
-    html += '<td class="vehicle"><div class="vehicle-title">' + escapeHtml(vehicleName(lot)) + '</div><div class="vehicle-sub">' + escapeHtml([lot.description, lot.boite, lot.lieu_stockage].filter(Boolean).join(' | ')) + '</div></td>';
-    html += '<td>' + escapeHtml(lot.annee_mec || '-') + '</td>';
-    html += '<td>' + (lot.km ? fmtInt(lot.km) : '-') + '</td>';
-    html += '<td>' + escapeHtml(lot.energie || '-') + '</td>';
-    html += '<td>' + (lot.mise_a_prix ? fmtMoney(lot.mise_a_prix) : '-') + '</td>';
-    html += '<td>' + (lot.prix_adjudication_eur ? fmtMoney(lot.prix_adjudication_eur) : '-') + '</td>';
-    html += '<td><span class="badge ' + statusClass(lot.statut) + '">' + escapeHtml(lot.statut || '-') + '</span></td>';
-    html += '<td>' + escapeHtml(lot.ct_verdict || (hasCt(lot) ? 'present' : '-')) + '</td>';
-    html += '<td>' + escapeHtml(lot.source_table || '-') + '</td>';
-    html += '<td>' + (url ? '<a class="link" target="_blank" rel="noreferrer" href="' + escapeHtml(url) + '">ouvrir</a>' : '-') + '</td>';
-    html += '</tr>';
-  }
-  html += '</tbody></table>';
-  if (rows.length > 500) {
-    html += '<div class="empty">Affichage limite a 500 lignes. Utilise le CSV pour exporter les ' + fmtInt(rows.length) + ' lignes filtrees.</div>';
-  }
-  wrap.innerHTML = html;
-  wrap.querySelectorAll('th[data-sort]').forEach((th) => th.addEventListener('click', () => setSort(th.dataset.sort)));
+  $('table-meta').textContent = fmt(rows.length) + ' lignes filtrees';
+  $('table-wrap').innerHTML = '<table><thead><tr><th>Date</th><th>Salle</th><th>Lot</th><th>Vehicule</th><th>Km</th><th>Prix</th><th>Statut</th><th>CT</th><th>Source</th></tr></thead><tbody>' +
+    rows.slice(0, 500).map((lot) => '<tr><td>' + esc(lot.date_vente || '-') + '</td><td>' + esc(lot.salle || '-') + '</td><td>' + esc(lot.lot_number || '-') + '</td><td class="vehicle-cell">' + esc(vehicleTitle(lot)) + '</td><td>' + (lot.km ? fmt(lot.km) : '-') + '</td><td>' + (primaryPrice(lot) ? eur(primaryPrice(lot)) : '-') + '</td><td>' + esc(lot.statut || '-') + '</td><td>' + esc(lot.ct_verdict || (hasCt(lot) ? 'present' : '-')) + '</td><td>' + esc(lot.source_table || '-') + '</td></tr>').join('') +
+    '</tbody></table>';
 }
 
-function applyAll() {
-  const f = activeFilters();
-  state.filtered = state.all.filter((row) => matchesFilters(row, f)).sort(compareRows);
-  renderKpis(state.filtered);
-  renderCharts(state.filtered);
-  renderTable(state.filtered);
+function renderCurrentPage() {
+  $('page-lots').style.display = state.tab === 'lots' || state.tab === 'favs' ? 'block' : 'none';
+  $('page-insights').style.display = state.tab === 'insights' ? 'block' : 'none';
+  $('filterbar').style.display = 'block';
+  if (state.tab === 'insights') renderInsights();
+  else renderGrid();
 }
 
-function resetFilters() {
-  ['q', 'source-filter', 'salle-filter', 'date-filter', 'statut-filter', 'marque-filter', 'energie-filter', 'ct-filter', 'price-min', 'price-max', 'year-min', 'km-max']
-    .forEach((id) => { $(id).value = ''; });
+function openModal(key) {
+  const lot = state.all.find((item) => lotKey(item) === key);
+  if (!lot) return;
+  const old = document.querySelector('.modal-overlay');
+  if (old) old.remove();
+  const photo = lot.thumbnail ? '<img src="' + esc(lot.thumbnail) + '" alt="">' : '<div class="photo-placeholder">A</div>';
+  const specs = [
+    ['Vente', lot.sale_id],
+    ['Salle', lot.salle],
+    ['Date', lot.date_vente],
+    ['Lot', lot.lot_number],
+    ['Annee', lot.annee_mec],
+    ['Km', lot.km ? fmt(lot.km) + ' km' : ''],
+    ['Energie', lot.energie],
+    ['Boite', lot.boite],
+    ['Stockage', lot.lieu_stockage],
+    ['Canal', lot.canal],
+    ['Source', lot.source_table]
+  ].filter(([, value]) => value !== null && value !== undefined && value !== '');
+  const major = asArray(lot.ct_defauts_maj);
+  const minor = asArray(lot.ct_defauts_min);
+  const urls = [
+    lot.url_alcopa && ['Fiche Alcopa', lot.url_alcopa],
+    lot.url_interencheres && ['Fiche Interencheres', lot.url_interencheres],
+    lot.url_ct && ['Controle technique', lot.url_ct]
+  ].filter(Boolean);
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = '<div class="modal">' +
+    '<div class="modal-photo">' + photo + '<button class="modal-close" type="button">×</button></div>' +
+    '<div class="modal-body">' +
+      '<div class="modal-title">' + esc(vehicleTitle(lot)) + '</div>' +
+      '<div class="modal-sub">Lot #' + esc(lot.lot_number || '?') + ' · ' + esc([lot.salle, lot.date_vente, lot.source_table].filter(Boolean).join(' · ')) + '</div>' +
+      '<div class="modal-grid">' + specs.map(([label, value]) => '<div class="modal-spec"><span>' + esc(label) + '</span><strong>' + esc(value) + '</strong></div>').join('') + '</div>' +
+      '<div class="detail-section"><div class="detail-title">Analyse prix</div><div class="pricing"><div><div class="price-label">Depart</div><div class="price-value">' + (lot.mise_a_prix ? eur(lot.mise_a_prix) : lot.estimation_eur ? eur(lot.estimation_eur) : '-') + '</div></div><div><div class="price-label">Adjudication / live</div><div class="price-value green">' + (primaryPrice(lot) ? eur(primaryPrice(lot)) : '-') + '</div></div></div>' + (primaryPrice(lot) ? '<div class="final-price"><span>Prix final estime</span><strong>' + eur(finalPrice(lot)) + '</strong></div>' : '') + '</div>' +
+      '<div class="detail-section"><div class="detail-title">Controle technique</div><div class="modal-spec"><span>Verdict</span><strong>' + esc(lot.ct_verdict || (hasCt(lot) ? 'CT present' : 'Non renseigne')) + '</strong></div>' +
+        (major.length ? '<div class="detail-title" style="margin-top:12px;color:var(--red)">Defauts majeurs</div>' + major.map((d) => '<div class="defect major">● <span>' + esc(typeof d === 'string' ? d : JSON.stringify(d)) + '</span></div>').join('') : '') +
+        (minor.length ? '<div class="detail-title" style="margin-top:12px;color:var(--yellow)">Defauts mineurs</div>' + minor.map((d) => '<div class="defect minor">● <span>' + esc(typeof d === 'string' ? d : JSON.stringify(d)) + '</span></div>').join('') : '') +
+        (!major.length && !minor.length ? '<div class="note">Aucun detail CT exploitable dans la vue.</div>' : '') +
+      '</div>' +
+      (lot.description ? '<div class="detail-section"><div class="detail-title">Description</div><div class="note">' + esc(lot.description) + '</div></div>' : '') +
+      '<div class="detail-section"><div class="detail-title">Raw source</div><pre class="raw-json">' + esc(JSON.stringify(lot.source_json || lot.raw_json || {}, null, 2)) + '</pre></div>' +
+      '<div class="modal-actions">' + urls.map(([label, url]) => '<a class="modal-btn primary" target="_blank" rel="noreferrer" href="' + esc(url) + '">' + esc(label) + '</a>').join('') + '</div>' +
+    '</div>' +
+  '</div>';
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay || event.target.classList.contains('modal-close')) overlay.remove();
+  });
+  document.body.appendChild(overlay);
+}
+
+function setTab(tab) {
+  state.tab = tab;
+  document.querySelectorAll('[data-tab]').forEach((el) => el.classList.toggle('active', el.dataset.tab === tab));
+  $('sidebar').classList.remove('open');
+  $('backdrop').classList.remove('open');
   applyAll();
 }
 
-function downloadCsv() {
+function resetFilters() {
+  ['search', 'source-filter', 'salle-filter', 'date-filter', 'marque-filter', 'energie-filter', 'statut-filter', 'price-min', 'price-max', 'year-min', 'km-max'].forEach((id) => { $(id).value = ''; });
+  state.ct = '';
+  document.querySelectorAll('[data-ct]').forEach((btn) => btn.classList.toggle('active', btn.dataset.ct === ''));
+  applyAll();
+}
+
+function csvExport() {
   if (!state.filtered.length) {
-    toast('Aucune ligne a exporter', 'warn');
+    toast('Aucune ligne a exporter', 'error');
     return;
   }
-  const fields = [
-    'unified_key', 'source_table', 'sale_id', 'date_vente', 'salle', 'lot_number',
-    'marque', 'modele', 'description', 'energie', 'annee_mec', 'km', 'boite',
-    'mise_a_prix', 'enchere_courante', 'estimation_eur', 'prix_adjudication_eur',
-    'statut', 'canal', 'url_alcopa', 'url_interencheres', 'url_ct', 'ct_verdict'
-  ];
+  const fields = ['unified_key','source_table','sale_id','date_vente','salle','lot_number','marque','modele','description','energie','annee_mec','km','boite','mise_a_prix','enchere_courante','estimation_eur','prix_adjudication_eur','statut','canal','url_alcopa','url_interencheres','url_ct','ct_verdict'];
   const lines = state.filtered.map((row) => fields.map((field) => {
-    const value = asText(row[field]).replace(/"/g, '""');
+    const value = text(row[field]).replace(/"/g, '""');
     return /[",\n]/.test(value) ? '"' + value + '"' : value;
   }).join(','));
   const blob = new Blob(['\uFEFF' + fields.join(',') + '\n' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
@@ -912,31 +1603,60 @@ function downloadCsv() {
 }
 
 async function loadData() {
-  const cfg = saveConfig({ silent: true });
+  const cfg = saveConfig();
   if (!cfg) return;
-  setLoading(true);
+  $('load-btn').textContent = 'Chargement...';
   try {
-    const rows = await fetchAllRows(cfg);
-    state.all = rows;
+    state.all = await fetchLots(cfg);
     hydrateFilters();
+    updateFavCount();
     applyAll();
-    toast(fmtInt(rows.length) + ' lots charges', 'ok');
+    const latest = state.all.map((lot) => Date.parse(lot.source_updated_at)).filter(Number.isFinite).sort((a, b) => b - a)[0];
+    $('fresh-text').textContent = latest ? 'Derniere maj ' + new Date(latest).toLocaleString('fr-FR') : '';
+    toast(fmt(state.all.length) + ' lots charges', 'ok');
   } catch (error) {
-    toast('Erreur Supabase: ' + error.message, 'error');
+    toast(error.message, 'error');
   } finally {
-    setLoading(false);
+    $('load-btn').textContent = 'Charger';
   }
 }
 
-['q', 'source-filter', 'salle-filter', 'date-filter', 'statut-filter', 'marque-filter', 'energie-filter', 'ct-filter', 'price-min', 'price-max', 'year-min', 'km-max']
-  .forEach((id) => $(id).addEventListener('input', applyAll));
-$('save-btn').addEventListener('click', () => saveConfig());
+document.querySelectorAll('[data-tab]').forEach((el) => el.addEventListener('click', () => setTab(el.dataset.tab)));
+document.querySelectorAll('[data-ct]').forEach((el) => el.addEventListener('click', () => {
+  state.ct = el.dataset.ct;
+  document.querySelectorAll('[data-ct]').forEach((btn) => btn.classList.toggle('active', btn === el));
+  applyAll();
+}));
+document.querySelectorAll('[data-sort]').forEach((el) => {
+  el.dataset.base = el.textContent.trim();
+  el.addEventListener('click', () => {
+    if (state.sort.key === el.dataset.sort) state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
+    else state.sort = { key: el.dataset.sort, dir: ['prix_adjudication_eur', 'km'].includes(el.dataset.sort) ? 'asc' : 'desc' };
+    applyAll();
+  });
+});
+['search','source-filter','salle-filter','date-filter','marque-filter','energie-filter','statut-filter','price-min','price-max','year-min','km-max'].forEach((id) => $(id).addEventListener('input', applyAll));
 $('load-btn').addEventListener('click', loadData);
+$('refresh-btn').addEventListener('click', loadData);
 $('reset-btn').addEventListener('click', resetFilters);
-$('csv-btn').addEventListener('click', downloadCsv);
-
+$('csv-btn').addEventListener('click', csvExport);
+$('theme-btn').addEventListener('click', () => {
+  const light = document.body.classList.toggle('light');
+  localStorage.setItem('autolot-theme', light ? 'light' : 'dark');
+});
+$('menu-btn').addEventListener('click', () => {
+  $('sidebar').classList.add('open');
+  $('backdrop').classList.add('open');
+});
+$('backdrop').addEventListener('click', () => {
+  $('sidebar').classList.remove('open');
+  $('backdrop').classList.remove('open');
+});
+if (localStorage.getItem('autolot-theme') === 'light') document.body.classList.add('light');
 hydrateConfig();
+updateFavCount();
 applyAll();
+loadData();
 </script>
 </body>
 </html>
