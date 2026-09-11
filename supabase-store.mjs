@@ -118,6 +118,12 @@ function assertTableName(value, label) {
   }
 }
 
+function envValue(name) {
+  if (process.env[name] != null) return process.env[name];
+  const found = Object.entries(process.env).find(([key]) => key.trim() === name);
+  return found ? found[1] : '';
+}
+
 function serializeLot(lot, includeDetails) {
   const columns = includeDetails
     ? [...ALCOPA_CATALOG_COLUMNS, ...DETAIL_LOT_COLUMNS]
@@ -144,17 +150,17 @@ function groupRowsByColumns(rows) {
 }
 
 function createSupabaseStore(options = {}) {
-  const baseUrl = cleanBaseUrl(options.url || process.env.SUPABASE_URL);
+  const baseUrl = cleanBaseUrl(options.url || envValue('SUPABASE_URL'));
   const key = String(
     options.key
-      || process.env.SUPABASE_SERVICE_ROLE_KEY
-      || process.env.SUPABASE_KEY
+      || envValue('SUPABASE_SERVICE_ROLE_KEY')
+      || envValue('SUPABASE_KEY')
       || '',
   ).trim();
-  const lotsTable = options.lotsTable || process.env.SUPABASE_LOTS_TABLE || 'alcopa_lots';
-  const salesTable = options.salesTable || process.env.SUPABASE_SALES_TABLE || 'alcopa_sales';
+  const lotsTable = options.lotsTable || envValue('SUPABASE_LOTS_TABLE') || 'alcopa_lots';
+  const salesTable = options.salesTable || envValue('SUPABASE_SALES_TABLE') || 'alcopa_sales';
   const fetchImpl = options.fetch || fetch;
-  const batchSize = Math.max(1, Number(options.batchSize || process.env.SUPABASE_BATCH_SIZE || 100));
+  const batchSize = Math.max(1, Number(options.batchSize || envValue('SUPABASE_BATCH_SIZE') || 100));
   assertTableName(lotsTable, 'Table lots');
   assertTableName(salesTable, 'Table ventes');
 

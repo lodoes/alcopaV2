@@ -32,17 +32,26 @@ const DEFAULT_DETAIL_DELAY_MS = Number(process.env.DEFAULT_DETAIL_DELAY_MS || 50
 const MAX_IMPORT_BYTES = Math.max(10_000, Number(process.env.MAX_IMPORT_BYTES || 2_000_000));
 
 function supabaseEnvStatus() {
-  const url = String(process.env.SUPABASE_URL || '').trim();
+  const envValue = (name) => {
+    if (process.env[name] != null) return process.env[name];
+    const found = Object.entries(process.env).find(([key]) => key.trim() === name);
+    return found ? found[1] : '';
+  };
+  const seenKeys = Object.keys(process.env)
+    .filter((key) => key.toUpperCase().includes('SUPABASE'))
+    .sort();
+  const url = String(envValue('SUPABASE_URL') || '').trim();
   const key = String(
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-      || process.env.SUPABASE_KEY
+    envValue('SUPABASE_SERVICE_ROLE_KEY')
+      || envValue('SUPABASE_KEY')
       || '',
   ).trim();
   return {
     urlConfigured: Boolean(url),
-    serviceRoleKeyConfigured: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
-    fallbackKeyConfigured: Boolean(process.env.SUPABASE_KEY),
+    serviceRoleKeyConfigured: Boolean(envValue('SUPABASE_SERVICE_ROLE_KEY')),
+    fallbackKeyConfigured: Boolean(envValue('SUPABASE_KEY')),
     usable: Boolean(url && key),
+    seenKeys,
   };
 }
 
