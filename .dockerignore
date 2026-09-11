@@ -5,6 +5,8 @@ npm-debug.log
 *.json
 *.csv
 *.html
+!analytics/
+!analytics/lots-unifies-analytics.html
 !package.json
 !package-lock.json
 railway.json

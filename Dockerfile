@@ -34,6 +34,8 @@ COPY --chown=node:node \
   vehicle-details.mjs \
   ./
 
+COPY --chown=node:node analytics/lots-unifies-analytics.html ./analytics/lots-unifies-analytics.html
+
 USER node
 
 EXPOSE 3000
