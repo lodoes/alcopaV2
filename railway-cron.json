@@ -5,8 +5,8 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "startCommand": "node combined-cron.mjs",
-    "cronSchedule": "15 2,16,17,18 * * *",
+    "startCommand": "node cron-all-sales.mjs",
+    "cronSchedule": "15 2 * * *",
     "healthcheckPath": null,
     "restartPolicyType": "NEVER",
     "multiRegionConfig": {
