@@ -89,13 +89,17 @@ function assertFetchResponse(response, url, label) {
   throw error;
 }
 
-async function discoverSalesForRooms(rooms, targetDate, config) {
+async function discoverSalesForRooms(rooms, targetDate, config, deps = {}) {
+  const discoverApi = deps.discoverInterencheresSalesApi || discoverInterencheresSalesApi;
+  const getHtml = deps.fetchHtml || fetchHtml;
+  const getJson = deps.fetchJson || fetchJson;
+  const knownAuctioneers = deps.auctioneers || KNOWN_ALCOPA_AUCTIONEERS;
   const byRoom = new Map(
-    KNOWN_ALCOPA_AUCTIONEERS.map((item) => [normalizeRoom(item.room), item]),
+    knownAuctioneers.map((item) => [normalizeRoom(item.room), item]),
   );
   const missingRooms = rooms.filter((room) => !byRoom.has(normalizeRoom(room)));
   if (missingRooms.length && (!config.apiEnabled || config.discoveryHtmlFallback)) {
-    const directory = await fetchHtml(IE_AUCTIONEER_DIRECTORY_URL);
+    const directory = await getHtml(IE_AUCTIONEER_DIRECTORY_URL);
     assertFetchResponse(directory, IE_AUCTIONEER_DIRECTORY_URL, 'Annuaire Interencheres');
     const auctioneers = parseAuctioneerLinks(
       directory.html,
@@ -104,6 +108,9 @@ async function discoverSalesForRooms(rooms, targetDate, config) {
     for (const item of auctioneers) byRoom.set(normalizeRoom(item.room), item);
   }
   const discovered = [];
+  const blockedRooms = [];
+  const failedRooms = [];
+  let roomsAttempted = 0;
 
   for (const room of rooms) {
     const auctioneer = byRoom.get(normalizeRoom(room));
@@ -111,12 +118,13 @@ async function discoverSalesForRooms(rooms, targetDate, config) {
       log('ie_auctioneer_missing', { room });
       continue;
     }
+    roomsAttempted += 1;
 
     if (config.apiEnabled) {
-      const apiDiscovery = await discoverInterencheresSalesApi({
+      const apiDiscovery = await discoverApi({
         auctioneer,
         targetDate,
-        fetchJson,
+        fetchJson: getJson,
         maxSales: config.maxCandidatesPerRoom,
       });
       log('ie_sales_api_discovery', {
@@ -136,18 +144,20 @@ async function discoverSalesForRooms(rooms, targetDate, config) {
         discovered.push(...apiDiscovery.sales);
         continue;
       }
+      if (apiDiscovery.blocked) blockedRooms.push({ room, error: apiDiscovery.error });
+      else failedRooms.push({ room, error: apiDiscovery.error });
       if (!config.discoveryHtmlFallback) continue;
       log('ie_sales_discovery_html_fallback', { room, error: apiDiscovery.error });
     }
 
-    const house = await fetchHtml(auctioneer.url);
+    const house = await getHtml(auctioneer.url);
     assertFetchResponse(house, auctioneer.url, `Maison de ventes ${room}`);
     const candidates = parseAuctioneerSales(house.html, house.finalUrl || auctioneer.url)
       .slice(0, config.maxCandidatesPerRoom);
     log('ie_sale_candidates', { room, count: candidates.length });
 
     for (const candidate of candidates) {
-      const response = await fetchHtml(candidate.url, { referer: auctioneer.url });
+      const response = await getHtml(candidate.url, { referer: auctioneer.url });
       assertFetchResponse(response, candidate.url, `Vente Interencheres ${candidate.url}`);
       const metadata = parseSaleMetadata(response.html, response.finalUrl || candidate.url, room);
       if (metadata.date !== targetDate || !metadata.room_confirmed) continue;
@@ -157,10 +167,23 @@ async function discoverSalesForRooms(rooms, targetDate, config) {
         firstResponse: response,
       });
     }
+
+    // Le repli HTML a abouti: la salle n'est plus consideree comme bloquee.
+    const clearRoom = (list) => {
+      const index = list.findIndex((item) => item.room === room);
+      if (index >= 0) list.splice(index, 1);
+    };
+    clearRoom(blockedRooms);
+    clearRoom(failedRooms);
   }
 
   const unique = new Map(discovered.map((sale) => [sale.metadata.event_id || sale.url, sale]));
-  return [...unique.values()];
+  return {
+    sales: [...unique.values()],
+    roomsAttempted,
+    blockedRooms,
+    failedRooms,
+  };
 }
 
 function valuesEqual(left, right) {
@@ -277,7 +300,39 @@ async function runCron() {
       lots: sale.lots.length,
     })),
   });
-  const discovered = await discoverSalesForRooms(rooms, config.targetDate, config);
+  const discovery = await discoverSalesForRooms(rooms, config.targetDate, config);
+  const { blockedRooms, failedRooms, roomsAttempted } = discovery;
+  const discovered = discovery.sales;
+
+  // Toutes les salles bloquees: l'anti-bot nous ferme la porte, ce n'est pas
+  // une soiree sans resultats publies. On le distingue explicitement.
+  if (roomsAttempted > 0 && blockedRooms.length === roomsAttempted) {
+    log('ie_all_rooms_blocked', {
+      runId,
+      targetDate: config.targetDate,
+      roomsAttempted,
+      rooms: blockedRooms.map((item) => item.room),
+      transport: getTransportName(),
+      message: 'Toutes les salles renvoient un challenge anti-bot: aucun resultat recupere.',
+    });
+    return {
+      runId,
+      ok: false,
+      blocked: true,
+      reason: 'all_rooms_blocked',
+      targetDate: config.targetDate,
+      localLots: lots.length,
+      localSales: localSales.length,
+      roomsAttempted,
+      blockedRooms: blockedRooms.map((item) => item.room),
+      discoveredSales: 0,
+      updates: 0,
+      saved: 0,
+      dryRun: config.dryRun,
+      durationMs: Date.now() - startedAt,
+    };
+  }
+
   log('ie_sales_discovered', {
     runId,
     count: discovered.length,
@@ -361,6 +416,9 @@ async function runCron() {
     targetDate: config.targetDate,
     localLots: lots.length,
     localSales: localSales.length,
+    roomsAttempted,
+    blockedRooms: blockedRooms.map((item) => item.room),
+    failedRooms: failedRooms.map((item) => item.room),
     discoveredSales: discovered.length,
     scrapedSales: scraped.length,
     matchedSales: matches.length,
@@ -382,7 +440,9 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
   runCron()
     .then((summary) => {
       log('ie_cron_finished', summary);
-      if (summary.ok === false) process.exitCode = 2;
+      // Un blocage Cloudflare ou une absence de matching est un etat metier
+      // attendu en cron: on le logue, mais on laisse Railway terminer proprement.
+      // Les erreurs inattendues passent toujours par le catch avec exitCode=1.
     })
     .catch((error) => {
       log('ie_cron_failed', {
@@ -398,6 +458,7 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
 
 export {
   buildUpdates,
+  discoverSalesForRooms,
   groupLocalSales,
   parisClock,
   runCron,

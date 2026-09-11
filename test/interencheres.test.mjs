@@ -119,7 +119,7 @@ test('Interencheres sales discovery uses ie4_sales without loading auctioneer HT
   assert.match(calls[0].url, /ie4_sales/);
   assert.match(calls[0].url, /filters%5Borganization%5D=509/);
   assert.match(calls[0].url, /filters%5Bdatetime_range%5D=2026-09-10%2C2026-09-10/);
-  assert.equal(calls[0].options.headers['x-range'], 'sales=0-199');
+  assert.equal(calls[0].options.headers['x-range'], 'items=0-199');
 });
 
 test('Interencheres page parser extracts terminal results and pagination', () => {

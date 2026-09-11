@@ -172,7 +172,7 @@ async function discoverInterencheresSalesApi(options) {
     referer: auctioneer.url || `${IE_BASE_URL}/`,
     headers: {
       origin: IE_BASE_URL,
-      'x-range': 'sales=0-199',
+      'x-range': 'items=0-199',
       'x-requested-with': 'XMLHttpRequest',
     },
   });

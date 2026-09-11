@@ -155,24 +155,48 @@ const BROWSER_SETTLE_MS = Math.max(0, Number(process.env.BROWSER_SETTLE_MS || 75
 const MAX_BINARY_BYTES = Math.max(1_000_000, Number(process.env.MAX_BINARY_BYTES || 30_000_000));
 const RETRY_STATUSES = new Set([403, 405, 408, 425, 429, 500, 502, 503, 504]);
 
-const session = { cookies: new Map(), warm: false };
+const WARMUP_ORIGIN = process.env.SCRAPER_WARMUP_ORIGIN || BASE_URL;
+
+// Pot de cookies cloisonne par origine: les cookies Alcopa ne doivent pas partir
+// vers Interencheres, et inversement.
+const session = { jars: new Map(), warmOrigins: new Set() };
+
+function originOf(url) {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return WARMUP_ORIGIN;
+  }
+}
+
+function jarFor(origin) {
+  let jar = session.jars.get(origin);
+  if (!jar) {
+    jar = new Map();
+    session.jars.set(origin, jar);
+  }
+  return jar;
+}
 let browserPromise = null;
 let browserContextPromise = null;
 
-function storeCookies(res) {
+function storeCookies(res, url) {
+  const jar = jarFor(originOf(res.url || url || ''));
   const raw = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [];
   for (const cookie of raw) {
     const [pair] = cookie.split(';');
     const index = pair.indexOf('=');
-    if (index > 0) session.cookies.set(pair.slice(0, index).trim(), pair.slice(index + 1).trim());
+    if (index > 0) jar.set(pair.slice(0, index).trim(), pair.slice(index + 1).trim());
   }
 }
 
-function cookieHeader() {
-  return [...session.cookies.entries()].map(([name, value]) => `${name}=${value}`).join('; ');
+function cookieHeader(url = '') {
+  const jar = session.jars.get(originOf(url));
+  if (!jar) return '';
+  return [...jar.entries()].map(([name, value]) => `${name}=${value}`).join('; ');
 }
 
-function browserHeaders({ referer = '' } = {}) {
+function browserHeaders({ referer = '', url = '' } = {}) {
   const headers = {
     'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
     'accept-language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -188,7 +212,7 @@ function browserHeaders({ referer = '' } = {}) {
     'upgrade-insecure-requests': '1',
     'user-agent': USER_AGENT,
   };
-  const cookie = cookieHeader();
+  const cookie = cookieHeader(url);
   if (cookie) headers.cookie = cookie;
   if (referer) headers.referer = referer;
   return headers;
@@ -200,32 +224,35 @@ const CHALLENGE_PATTERNS = [
   /datadome|are you a human|px-captcha/i,
 ];
 
-function isChallenge(html) {
+function isChallenge(html = '', status = 200) {
+  // Un 403/429 sans page riche est un blocage anti-bot, pas une erreur applicative:
+  // certaines protections repondent un JSON court du type {"error":"forbidden"}.
+  if ((status === 403 || status === 429) && (!html || html.length < 4096)) return true;
   return CHALLENGE_PATTERNS.some((pattern) => pattern.test(html));
 }
 
 async function rawFetch(url, referer) {
-  const res = await fetch(url, { headers: browserHeaders({ referer }), redirect: 'follow' });
+  const res = await fetch(url, { headers: browserHeaders({ referer, url }), redirect: 'follow' });
   const html = await res.text();
-  storeCookies(res);
+  storeCookies(res, url);
   return {
     status: res.status,
     finalUrl: res.url,
     headers: Object.fromEntries(res.headers.entries()),
     html,
-    challenge: isChallenge(html),
+    challenge: isChallenge(html, res.status),
   };
 }
 
 async function rawFetchBinary(url, referer) {
   const res = await fetch(url, {
     headers: {
-      ...browserHeaders({ referer }),
+      ...browserHeaders({ referer, url }),
       accept: 'application/pdf,application/octet-stream;q=0.9,*/*;q=0.8',
     },
     redirect: 'follow',
   });
-  storeCookies(res);
+  storeCookies(res, url);
   const declaredLength = Number(res.headers.get('content-length') || 0);
   if (declaredLength > MAX_BINARY_BYTES) {
     throw new Error(`Document trop volumineux (${declaredLength} octets)`);
@@ -241,17 +268,19 @@ async function rawFetchBinary(url, referer) {
     finalUrl: res.url,
     headers: Object.fromEntries(res.headers.entries()),
     buffer,
-    challenge: isChallenge(preview),
+    challenge: isChallenge(preview, res.status),
   };
 }
 
-function apiHeaders({ referer = '', headers = {} } = {}) {
+function apiHeaders({ referer = '', headers = {}, url = '' } = {}) {
+  const cookie = cookieHeader(url);
   const values = {
     accept: 'application/json',
     'accept-language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
     'cache-control': 'no-cache',
     pragma: 'no-cache',
     'user-agent': USER_AGENT,
+    ...(cookie ? { cookie } : {}),
     ...headers,
   };
   if (referer) values.referer = referer;
@@ -260,16 +289,17 @@ function apiHeaders({ referer = '', headers = {} } = {}) {
 
 async function rawFetchJson(url, referer, headers) {
   const res = await fetch(url, {
-    headers: apiHeaders({ referer, headers }),
+    headers: apiHeaders({ referer, headers, url }),
     redirect: 'follow',
   });
   const text = await res.text();
+  storeCookies(res, url);
   return {
     status: res.status,
     finalUrl: res.url,
     headers: Object.fromEntries(res.headers.entries()),
     text,
-    challenge: isChallenge(text),
+    challenge: isChallenge(text, res.status),
     transport: 'direct',
   };
 }
@@ -334,7 +364,7 @@ async function browserFetch(url, referer) {
       finalUrl: page.url(),
       headers: response ? await response.allHeaders() : {},
       html,
-      challenge: isChallenge(html),
+      challenge: isChallenge(html, response?.status() || 0),
       transport: 'browser',
     };
   } finally {
@@ -369,7 +399,7 @@ async function browserFetchBinary(url, referer) {
     finalUrl: response.url(),
     headers,
     buffer,
-    challenge: isChallenge(preview),
+    challenge: isChallenge(preview, response.status()),
     transport: 'browser',
   };
 }
@@ -387,7 +417,7 @@ async function browserFetchJson(url, referer, headers) {
     finalUrl: response.url(),
     headers: response.headers(),
     text,
-    challenge: isChallenge(text),
+    challenge: isChallenge(text, response.status()),
     transport: 'browser',
   };
 }
@@ -417,22 +447,25 @@ function transportFetchJson(url, referer, headers) {
 }
 
 async function clearTransportSession() {
-  session.cookies.clear();
+  session.jars.clear();
+  session.warmOrigins.clear();
   if (browserContextPromise) {
     const context = await browserContextPromise.catch(() => null);
     if (context) await context.clearCookies();
   }
 }
 
-async function warmUpSession(force = false) {
-  if (session.warm && !force) return true;
+async function warmUpSession(force = false, origin = WARMUP_ORIGIN) {
+  if (session.warmOrigins.has(origin) && !force) return true;
   if (force) await clearTransportSession();
   try {
-    const res = await transportFetch(`${BASE_URL}/`, '');
-    session.warm = res.status >= 200 && res.status < 400;
-    return session.warm;
+    const res = await transportFetch(`${origin}/`, '');
+    const warm = res.status >= 200 && res.status < 400 && !res.challenge;
+    if (warm) session.warmOrigins.add(origin);
+    else session.warmOrigins.delete(origin);
+    return warm;
   } catch {
-    session.warm = false;
+    session.warmOrigins.delete(origin);
     return false;
   }
 }
@@ -440,7 +473,7 @@ async function warmUpSession(force = false) {
 async function fetchHtml(url, { referer = '' } = {}) {
   let last = null;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-    await warmUpSession(attempt > 1);
+    await warmUpSession(attempt > 1, originOf(url));
     try {
       last = await transportFetch(url, referer || `${BASE_URL}/`);
     } catch (error) {
@@ -463,7 +496,7 @@ async function fetchHtml(url, { referer = '' } = {}) {
 async function fetchBinary(url, { referer = '' } = {}) {
   let last = null;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-    await warmUpSession(attempt > 1);
+    await warmUpSession(attempt > 1, originOf(url));
     try {
       last = await transportFetchBinary(url, referer || `${BASE_URL}/`);
     } catch (error) {
@@ -487,6 +520,7 @@ async function fetchBinary(url, { referer = '' } = {}) {
 async function fetchJson(url, { referer = '', headers = {} } = {}) {
   let last = null;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    await warmUpSession(attempt > 1, originOf(url));
     try {
       last = await transportFetchJson(url, referer, headers);
     } catch (error) {
@@ -539,7 +573,7 @@ async function closeBrowser() {
   const browser = browserPromise ? await browserPromise.catch(() => null) : null;
   browserPromise = null;
   if (browser) await browser.close().catch(() => {});
-  session.warm = false;
+  session.warmOrigins.clear();
 }
 
 function decodeHtml(value = '') {
