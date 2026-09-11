@@ -31,6 +31,21 @@ const MAX_OCR_LIMIT = Number(process.env.MAX_OCR_LIMIT || 500);
 const DEFAULT_DETAIL_DELAY_MS = Number(process.env.DEFAULT_DETAIL_DELAY_MS || 500);
 const MAX_IMPORT_BYTES = Math.max(10_000, Number(process.env.MAX_IMPORT_BYTES || 2_000_000));
 
+function supabaseEnvStatus() {
+  const url = String(process.env.SUPABASE_URL || '').trim();
+  const key = String(
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+      || process.env.SUPABASE_KEY
+      || '',
+  ).trim();
+  return {
+    urlConfigured: Boolean(url),
+    serviceRoleKeyConfigured: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+    fallbackKeyConfigured: Boolean(process.env.SUPABASE_KEY),
+    usable: Boolean(url && key),
+  };
+}
+
 function send(res, status, body, headers = {}) {
   const isBuffer = Buffer.isBuffer(body);
   const payload = isBuffer || typeof body === 'string' ? body : JSON.stringify(body, null, 2);
@@ -122,7 +137,11 @@ async function handleInterencheresImport(req, res) {
 
   const store = createSupabaseStore();
   if (!store) {
-    send(res, 500, { ok: false, error: 'Configure SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.' });
+    send(res, 500, {
+      ok: false,
+      error: 'Configure SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY sur le service API Railway, puis redeploy.',
+      supabase: supabaseEnvStatus(),
+    });
     return;
   }
 
@@ -598,6 +617,7 @@ const server = http.createServer(async (req, res) => {
         version: APP_VERSION,
         transport: getTransportName(),
         railwayRegion: process.env.RAILWAY_REPLICA_REGION || null,
+        supabase: supabaseEnvStatus(),
         endpoints: {
           scrape: '/scrape?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=30',
           enriched: '/scrape?url=https://www.alcopa-auction.fr/salle-de-vente-encheres/lyon/12371&maxPages=1&details=1&detailLimit=3&ocr=1&ocrLimit=1',
