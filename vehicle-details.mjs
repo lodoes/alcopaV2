@@ -190,10 +190,13 @@ async function enrichLot(lot, options) {
   try {
     detailResponse = await options.fetchHtml(detailUrl, { referer: options.referer || '' });
     if (detailResponse.challenge || detailResponse.status < 200 || detailResponse.status >= 300) {
+      const detailError = detailResponse.networkError
+        ? `Erreur navigateur: ${detailResponse.networkError}`
+        : `HTTP ${detailResponse.status || 0} sur la fiche Alcopa`;
       return {
         lot: {
           ...output,
-          detail_error: `HTTP ${detailResponse.status || 0} sur la fiche Alcopa`,
+          detail_error: detailError,
         },
         blocked: Boolean(detailResponse.challenge || [403, 405, 429].includes(detailResponse.status)),
         blockReason: blockReason(detailUrl, detailResponse),
@@ -228,7 +231,9 @@ async function enrichLot(lot, options) {
     }
     const response = await options.fetchBinary(output.url_ct, { referer: detailResponse.finalUrl || detailUrl });
     if (response.challenge || response.status < 200 || response.status >= 300) {
-      output.ct_error = `HTTP ${response.status || 0} pendant le telechargement du CT`;
+      output.ct_error = response.networkError
+        ? `Erreur navigateur pendant le telechargement du CT: ${response.networkError}`
+        : `HTTP ${response.status || 0} pendant le telechargement du CT`;
       return {
         lot: output,
         blocked: Boolean(response.challenge || [403, 405, 429].includes(response.status)),

@@ -368,7 +368,7 @@ async function browserFetch(url, referer) {
       transport: 'browser',
     };
   } finally {
-    await page.close();
+    await page.close().catch(() => {});
   }
 }
 
@@ -455,6 +455,16 @@ async function clearTransportSession() {
   }
 }
 
+async function recoverBrowserAfterNetworkError(response) {
+  if (SCRAPER_TRANSPORT !== 'browser' || response?.status !== 0) return;
+  await closeBrowser();
+}
+
+function retryErrorSuffix(response) {
+  const networkError = String(response?.networkError || '').replace(/\s+/g, ' ').trim();
+  return networkError ? ` | ${networkError}` : '';
+}
+
 async function warmUpSession(force = false, origin = WARMUP_ORIGIN) {
   if (session.warmOrigins.has(origin) && !force) return true;
   if (force) await clearTransportSession();
@@ -486,10 +496,12 @@ async function fetchHtml(url, { referer = '' } = {}) {
     const retryable = last.status === 0 || RETRY_STATUSES.has(last.status);
     if (!retryable) return { ...last, attempts: attempt };
     if (attempt < MAX_ATTEMPTS) {
-      console.error(`[retry ${attempt}/${MAX_ATTEMPTS}] ${url} -> statut ${last.status}${last.challenge ? ' (challenge)' : ''}`);
+      console.error(`[retry ${attempt}/${MAX_ATTEMPTS}] ${url} -> statut ${last.status}${last.challenge ? ' (challenge)' : ''}${retryErrorSuffix(last)}`);
+      await recoverBrowserAfterNetworkError(last);
       await sleep(500 * (2 ** (attempt - 1)));
     }
   }
+  await recoverBrowserAfterNetworkError(last);
   return { ...last, attempts: MAX_ATTEMPTS };
 }
 
@@ -512,8 +524,13 @@ async function fetchBinary(url, { referer = '' } = {}) {
     if (last.challenge) return { ...last, attempts: attempt };
     const retryable = last.status === 0 || RETRY_STATUSES.has(last.status);
     if (!retryable) return { ...last, attempts: attempt };
-    if (attempt < MAX_ATTEMPTS) await sleep(500 * (2 ** (attempt - 1)));
+    if (attempt < MAX_ATTEMPTS) {
+      console.error(`[retry ${attempt}/${MAX_ATTEMPTS}] ${url} -> statut ${last.status}${retryErrorSuffix(last)}`);
+      await recoverBrowserAfterNetworkError(last);
+      await sleep(500 * (2 ** (attempt - 1)));
+    }
   }
+  await recoverBrowserAfterNetworkError(last);
   return { ...last, attempts: MAX_ATTEMPTS };
 }
 
@@ -536,8 +553,13 @@ async function fetchJson(url, { referer = '', headers = {} } = {}) {
     if (last.challenge) return { ...last, attempts: attempt };
     const retryable = last.status === 0 || RETRY_STATUSES.has(last.status);
     if (!retryable) return { ...last, attempts: attempt };
-    if (attempt < MAX_ATTEMPTS) await sleep(500 * (2 ** (attempt - 1)));
+    if (attempt < MAX_ATTEMPTS) {
+      console.error(`[retry ${attempt}/${MAX_ATTEMPTS}] ${url} -> statut ${last.status}${retryErrorSuffix(last)}`);
+      await recoverBrowserAfterNetworkError(last);
+      await sleep(500 * (2 ** (attempt - 1)));
+    }
   }
+  await recoverBrowserAfterNetworkError(last);
   return { ...last, attempts: MAX_ATTEMPTS };
 }
 
