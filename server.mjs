@@ -358,6 +358,15 @@ async function handleInterencheresImport(req, res) {
   const matches = matchInterencheresSales(localSales, [ieSale]);
   const { updates, stats } = buildUpdates(matches);
   const saved = await store.updateInterencheresLots(updates);
+  let analyticsRows = null;
+  let analyticsRefreshError = null;
+  if (saved > 0) {
+    try {
+      analyticsRows = await store.refreshAnalytics();
+    } catch (error) {
+      analyticsRefreshError = error.message;
+    }
+  }
 
   send(res, 200, {
     ok: matches.length > 0,
@@ -369,6 +378,8 @@ async function handleInterencheresImport(req, res) {
     matchedSales: matches.length,
     updates: updates.length,
     saved,
+    analyticsRows,
+    analyticsRefreshError,
     ...stats,
   });
 }

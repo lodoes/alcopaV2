@@ -220,6 +220,15 @@ async function runCron() {
     durationMs: Date.now() - startedAt,
     results,
   };
+  if (store && summary.catalogLots > 0) {
+    try {
+      summary.analyticsRows = await store.refreshAnalytics();
+      log('analytics_refreshed', { runId, rows: summary.analyticsRows });
+    } catch (error) {
+      summary.analyticsRefreshError = error.message;
+      log('analytics_refresh_failed', { runId, error: error.message });
+    }
+  }
   if (config.output) {
     await fs.writeFile(config.output, `${JSON.stringify({ ...summary, sales, lots: exportedLots }, null, 2)}\n`, 'utf8');
     summary.output = config.output;

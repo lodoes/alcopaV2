@@ -191,6 +191,31 @@ function createSupabaseStore(options = {}) {
     return text ? JSON.parse(text) : null;
   }
 
+  async function rpc(functionName, { body = {} } = {}) {
+    assertTableName(functionName, 'Fonction Supabase');
+    const url = new URL(`${baseUrl}/rest/v1/rpc/${functionName}`);
+    const response = await fetchImpl(url, {
+      method: 'POST',
+      headers: {
+        apikey: key,
+        authorization: `Bearer ${key}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(120_000),
+    });
+    if (!response.ok) {
+      const preview = (await response.text()).slice(0, 800);
+      throw new Error(`Supabase RPC ${functionName}: HTTP ${response.status} ${preview}`);
+    }
+    const text = await response.text();
+    return text ? JSON.parse(text) : null;
+  }
+
+  async function refreshAnalytics() {
+    return rpc('refresh_lots_analytics');
+  }
+
   async function upsertLots(lots, { includeDetails = false } = {}) {
     if (!lots.length) return 0;
     let saved = 0;
@@ -313,6 +338,7 @@ function createSupabaseStore(options = {}) {
     selectPendingDetails,
     selectPendingOcr,
     updateInterencheresLots,
+    refreshAnalytics,
     upsertLots,
     upsertSales,
   };

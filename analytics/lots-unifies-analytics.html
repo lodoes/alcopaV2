@@ -906,9 +906,9 @@ td.vehicle-cell {
     <div class="stack">
       <input class="field" id="supabase-url" placeholder="Supabase REST URL">
       <input class="field" id="supabase-key" placeholder="Anon / publishable key">
-      <input class="field" id="supabase-table" value="lots_unifies" placeholder="Vue">
+      <input class="field" id="supabase-table" value="lots_analytics" placeholder="Table">
       <button class="side-btn active" id="load-btn" type="button">Charger</button>
-      <div class="note">Mode conseille : lots_unifies. La page fusionne alcopa_lots + lots cote navigateur pour eviter les timeouts SQL.</div>
+      <div class="note">Mode conseille : lots_analytics. Table legere pre-fusionnee pour eviter les timeouts SQL.</div>
     </div>
   </div>
 
@@ -1059,12 +1059,14 @@ td.vehicle-cell {
 const DEFAULT_CFG = {
   url: 'https://gqmopxnrlacxyxiigjob.supabase.co/rest/v1',
   key: 'sb_publishable_BglDdUO2tKYBBS4HzZjqyw_iQD-Q4KS',
-  table: 'lots_unifies'
+  table: 'lots_analytics'
 };
 const CONFIG_KEY = 'autolot-unifies-config';
 const FAV_KEY = 'autolot-unifies-favs';
 const PAGE_SIZE = 500;
 const LIGHT_SELECT = [
+  'unified_key',
+  'source_table',
   'id',
   'merge_key',
   'sale_id',
@@ -1094,6 +1096,8 @@ const LIGHT_SELECT = [
   'ct_verdict',
   'ct_defauts_maj',
   'ct_defauts_min',
+  'source_updated_at',
+  'analytics_refreshed_at',
   'raw_json',
   'updated_at',
   'scraped_at',
@@ -1135,7 +1139,11 @@ const hasCt = (lot) => Boolean(lot.url_ct || lot.ct_verdict || lot.ct_defauts_ma
 const lotKey = (lot) => lot.unified_key || lot.id || lot.merge_key || [lot.sale_id, lot.salle, lot.date_vente, lot.lot_number].join('|');
 
 function config() {
-  try { return { ...DEFAULT_CFG, ...JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}') }; }
+  try {
+    const cfg = { ...DEFAULT_CFG, ...JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}') };
+    if (cfg.table === 'lots_unifies') cfg.table = 'lots_analytics';
+    return cfg;
+  }
   catch { return { ...DEFAULT_CFG }; }
 }
 
@@ -1150,7 +1158,7 @@ function saveConfig() {
   const cfg = {
     url: $('supabase-url').value.trim().replace(/\/+$/, ''),
     key: $('supabase-key').value.trim(),
-    table: $('supabase-table').value.trim() || 'lots_unifies'
+    table: $('supabase-table').value.trim() || 'lots_analytics'
   };
   if (!cfg.url || !cfg.key || !cfg.table) {
     toast('Configuration Supabase incomplete', 'error');
